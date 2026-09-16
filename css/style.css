@@ -450,7 +450,7 @@ body {
     flex-direction: column;
     flex: 1 1 320px;
     min-height: 180px;
-    resize: vertical;
+    resize: none !important;
     overflow: hidden;
 }
 
@@ -1021,12 +1021,13 @@ body {
 
 /* במת התורים (Queues Stage Card - ניתן לשינוי גובה ומקסום) */
 .queue-stage-card {
-    flex: var(--stage-card-flex, 1 1 320px);
-    min-height: 180px;
+    flex: var(--stage-card-flex, 0 0 380px);
+    height: var(--stage-card-height, 380px);
+    min-height: 160px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    resize: vertical;
+    resize: none !important;
     position: relative;
     transition: box-shadow 0.2s ease;
 }
@@ -2372,13 +2373,12 @@ body.queue-dragging-active * {
 
 /* כרטיסיית מעקב נתונים, מחסנית ומסוף פלט (Tabs: Variables Watch, Call Stack & Console) */
 .inspection-tabs-card {
-    flex: 0 0 230px;
+    flex: 1 1 160px;
     min-height: 130px;
-    max-height: 380px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    resize: vertical;
+    resize: none !important;
 }
 
 .tabs-header {

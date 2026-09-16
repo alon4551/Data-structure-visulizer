@@ -3119,7 +3119,10 @@ public class Program
                 card.style.flex = `0 0 ${saved.width}`;
             }
             if (saved.height) {
-                card.style.height = saved.height;
+                const h = parseFloat(saved.height);
+                if (!isNaN(h) && h >= 80 && h <= 650) {
+                    card.style.height = `${h}px`;
+                }
             }
         }
 
@@ -3216,6 +3219,52 @@ public class Program
         let startHeight = 0;
         let isRtl = false;
 
+        const onPointerMove = (e) => {
+            if (!isResizing) return;
+            if (e.buttons === 0) {
+                onPointerUp(e);
+                return;
+            }
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const stage = this.dom.queuesStage;
+            const stageWidth = stage ? Math.max(280, stage.clientWidth - 20) : 900;
+            const stageHeight = stage ? Math.max(160, stage.clientHeight - 20) : 600;
+
+            if (mode === 'both' || mode === 'side') {
+                const deltaW = isRtl ? -dx : dx;
+                const newWidth = Math.max(200, Math.min(stageWidth, Math.round(startWidth + deltaW)));
+                card.style.width = `${newWidth}px`;
+                card.style.flex = `0 0 ${newWidth}px`;
+            }
+
+            if (mode === 'both' || mode === 'bottom') {
+                const maxHeight = Math.max(120, stageHeight);
+                const newHeight = Math.max(80, Math.min(maxHeight, Math.round(startHeight + dy)));
+                card.style.height = `${newHeight}px`;
+            }
+        };
+
+        const onPointerUp = (e) => {
+            if (!isResizing) return;
+            isResizing = false;
+            card.classList.remove('is-resizing');
+            document.body.classList.remove('viewcard-resizing-active');
+            if (e && e.pointerId != null) {
+                try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+            }
+
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener('pointercancel', onPointerUp);
+
+            if (!this.viewCardSizes) this.viewCardSizes = {};
+            this.viewCardSizes[cardId] = {
+                width: card.style.width,
+                height: card.style.height
+            };
+        };
+
         const onPointerDown = (e) => {
             if (e.button && e.button !== 0) return;
             isResizing = true;
@@ -3229,47 +3278,16 @@ public class Program
             card.classList.add('is-resizing');
             document.body.classList.add('viewcard-resizing-active');
             try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+
+            window.addEventListener('pointermove', onPointerMove, { passive: false });
+            window.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('pointercancel', onPointerUp);
+
             e.preventDefault();
             e.stopPropagation();
         };
 
-        const onPointerMove = (e) => {
-            if (!isResizing) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            const stageWidth = this.dom.queuesStage ? this.dom.queuesStage.clientWidth - 20 : 900;
-
-            if (mode === 'both' || mode === 'side') {
-                const deltaW = isRtl ? -dx : dx;
-                const newWidth = Math.max(200, Math.min(stageWidth, startWidth + deltaW));
-                card.style.width = `${newWidth}px`;
-                card.style.flex = `0 0 ${newWidth}px`;
-            }
-
-            if (mode === 'both' || mode === 'bottom') {
-                const newHeight = Math.max(80, startHeight + dy);
-                card.style.height = `${newHeight}px`;
-            }
-        };
-
-        const onPointerUp = (e) => {
-            if (!isResizing) return;
-            isResizing = false;
-            card.classList.remove('is-resizing');
-            document.body.classList.remove('viewcard-resizing-active');
-            try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
-
-            if (!this.viewCardSizes) this.viewCardSizes = {};
-            this.viewCardSizes[cardId] = {
-                width: card.style.width,
-                height: card.style.height
-            };
-        };
-
         handle.addEventListener('pointerdown', onPointerDown);
-        handle.addEventListener('pointermove', onPointerMove);
-        handle.addEventListener('pointerup', onPointerUp);
-        handle.addEventListener('pointercancel', onPointerUp);
     }
 
     applyViewCardOrder() {
@@ -4072,23 +4090,12 @@ public class Program
             let startVisualWidth = 0;
             let containerWidth = 0;
 
-            const onPointerDownHoriz = (e) => {
-                isDraggingHoriz = true;
-                startX = e.clientX;
-                const containerRect = container.getBoundingClientRect();
-                containerWidth = containerRect.width;
-                const visualPanel = document.getElementById('visual-panel') || document.querySelector('.visual-panel');
-                startVisualWidth = visualPanel ? visualPanel.getBoundingClientRect().width : containerWidth * 0.58;
-
-                splitter.classList.add('is-dragging');
-                document.body.style.cursor = 'col-resize';
-                document.body.style.userSelect = 'none';
-                try { splitter.setPointerCapture(e.pointerId); } catch (_) {}
-                e.preventDefault();
-            };
-
             const onPointerMoveHoriz = (e) => {
                 if (!isDraggingHoriz) return;
+                if (e.buttons === 0) {
+                    onPointerUpHoriz(e);
+                    return;
+                }
                 const isRtl = document.documentElement.dir === 'rtl' || getComputedStyle(document.body).direction === 'rtl';
                 const deltaX = e.clientX - startX;
                 // In RTL, dragging mouse left increases right column (visual-panel)
@@ -4112,23 +4119,51 @@ public class Program
                 splitter.classList.remove('is-dragging');
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
-                try { splitter.releasePointerCapture(e.pointerId); } catch (_) {}
+                if (e && e.pointerId != null) {
+                    try { splitter.releasePointerCapture(e.pointerId); } catch (_) {}
+                }
+
+                window.removeEventListener('pointermove', onPointerMoveHoriz);
+                window.removeEventListener('pointerup', onPointerUpHoriz);
+                window.removeEventListener('pointercancel', onPointerUpHoriz);
+            };
+
+            const onPointerDownHoriz = (e) => {
+                if (e.button && e.button !== 0) return;
+                isDraggingHoriz = true;
+                startX = e.clientX;
+                const containerRect = container.getBoundingClientRect();
+                containerWidth = containerRect.width;
+                const visualPanel = document.getElementById('visual-panel') || document.querySelector('.visual-panel');
+                startVisualWidth = visualPanel ? visualPanel.getBoundingClientRect().width : containerWidth * 0.58;
+
+                splitter.classList.add('is-dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                try { splitter.setPointerCapture(e.pointerId); } catch (_) {}
+
+                window.addEventListener('pointermove', onPointerMoveHoriz, { passive: false });
+                window.addEventListener('pointerup', onPointerUpHoriz);
+                window.addEventListener('pointercancel', onPointerUpHoriz);
+
+                e.preventDefault();
             };
 
             splitter.addEventListener('pointerdown', onPointerDownHoriz);
-            splitter.addEventListener('pointermove', onPointerMoveHoriz);
-            splitter.addEventListener('pointerup', onPointerUpHoriz);
-            splitter.addEventListener('pointercancel', onPointerUpHoriz);
         }
 
         // 2. Vertical Resizer (שינוי גובה חלון תצוגת התור)
         if (stageResizer && stageCard) {
+            const visualPanel = document.getElementById('visual-panel') || document.querySelector('.visual-panel');
+            const panelHeight = visualPanel ? visualPanel.clientHeight : 800;
+            const maxAllowed = Math.max(220, panelHeight - 160);
+
             const savedHeight = localStorage.getItem('queue_viz_stage_height');
             if (savedHeight) {
                 const h = parseFloat(savedHeight);
-                if (!isNaN(h) && h >= 160 && h <= 1200) {
+                if (!isNaN(h) && h >= 160 && h <= maxAllowed) {
                     stageCard.style.height = `${h}px`;
-                    stageCard.style.setProperty('--stage-card-flex', `0 0 ${h}px`);
+                    stageCard.style.flex = `0 0 ${h}px`;
                 }
             }
 
@@ -4136,30 +4171,23 @@ public class Program
             let startY = 0;
             let startHeight = 0;
 
-            const onPointerDownVert = (e) => {
-                isDraggingVert = true;
-                startY = e.clientY;
-                startHeight = stageCard.getBoundingClientRect().height;
-
-                stageResizer.classList.add('is-dragging');
-                document.body.style.cursor = 'row-resize';
-                document.body.style.userSelect = 'none';
-                try { stageResizer.setPointerCapture(e.pointerId); } catch (_) {}
-                e.preventDefault();
-            };
-
             const onPointerMoveVert = (e) => {
                 if (!isDraggingVert) return;
+                if (e.buttons === 0) {
+                    onPointerUpVert(e);
+                    return;
+                }
                 const deltaY = e.clientY - startY;
-                const visualPanel = document.getElementById('visual-panel') || document.querySelector('.visual-panel');
-                const panelHeight = visualPanel ? visualPanel.getBoundingClientRect().height : 800;
+                const currentPanel = document.getElementById('visual-panel') || document.querySelector('.visual-panel');
+                const currentPanelH = currentPanel ? currentPanel.clientHeight : 800;
 
                 const minHeight = 160;
-                const maxHeight = Math.max(minHeight + 60, panelHeight - 110);
-                const newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight + deltaY));
+                // השארת לפחות 160 פיקסלים עבור כרטיסיית המעקב והפלט התחתונה
+                const maxHeight = Math.max(minHeight + 60, currentPanelH - 160);
+                const newHeight = Math.max(minHeight, Math.min(maxHeight, Math.round(startHeight + deltaY)));
 
                 stageCard.style.height = `${newHeight}px`;
-                stageCard.style.setProperty('--stage-card-flex', `0 0 ${newHeight}px`);
+                stageCard.style.flex = `0 0 ${newHeight}px`;
                 localStorage.setItem('queue_viz_stage_height', newHeight);
             };
 
@@ -4169,13 +4197,34 @@ public class Program
                 stageResizer.classList.remove('is-dragging');
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
-                try { stageResizer.releasePointerCapture(e.pointerId); } catch (_) {}
+                if (e && e.pointerId != null) {
+                    try { stageResizer.releasePointerCapture(e.pointerId); } catch (_) {}
+                }
+
+                window.removeEventListener('pointermove', onPointerMoveVert);
+                window.removeEventListener('pointerup', onPointerUpVert);
+                window.removeEventListener('pointercancel', onPointerUpVert);
+            };
+
+            const onPointerDownVert = (e) => {
+                if (e.button && e.button !== 0) return;
+                isDraggingVert = true;
+                startY = e.clientY;
+                startHeight = stageCard.getBoundingClientRect().height;
+
+                stageResizer.classList.add('is-dragging');
+                document.body.style.cursor = 'row-resize';
+                document.body.style.userSelect = 'none';
+                try { stageResizer.setPointerCapture(e.pointerId); } catch (_) {}
+
+                window.addEventListener('pointermove', onPointerMoveVert, { passive: false });
+                window.addEventListener('pointerup', onPointerUpVert);
+                window.addEventListener('pointercancel', onPointerUpVert);
+
+                e.preventDefault();
             };
 
             stageResizer.addEventListener('pointerdown', onPointerDownVert);
-            stageResizer.addEventListener('pointermove', onPointerMoveVert);
-            stageResizer.addEventListener('pointerup', onPointerUpVert);
-            stageResizer.addEventListener('pointercancel', onPointerUpVert);
         }
 
         // 3. Maximize / Fullscreen Toggle (הגדלה / שחזור חלון תצוגת התור)
@@ -4224,11 +4273,71 @@ public class Program
         let lastTime = 0;
         let animationFrame = null;
 
+        const onStagePointerMove = (e) => {
+            if (!isDown || !activeTarget) return;
+            if (e.buttons === 0) {
+                stopDrag(e);
+                return;
+            }
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                hasMoved = true;
+            }
+
+            const now = performance.now();
+            const dt = Math.max(1, now - lastTime);
+            velocityX = (e.clientX - lastX) / dt;
+            lastX = e.clientX;
+            lastTime = now;
+
+            if (activeTarget !== stage) {
+                activeTarget.scrollLeft = scrollLeft - dx;
+            } else {
+                activeTarget.scrollLeft = scrollLeft - dx;
+                activeTarget.scrollTop = scrollTop - dy;
+            }
+        };
+
+        const stopDrag = (e) => {
+            if (!isDown) return;
+            isDown = false;
+            const target = activeTarget;
+
+            if (target) {
+                target.classList.remove('is-panning');
+                if (e && e.pointerId != null) {
+                    try { target.releasePointerCapture(e.pointerId); } catch (_) {}
+                }
+                activeTarget = null;
+            }
+            document.body.classList.remove('queue-dragging-active');
+
+            window.removeEventListener('pointermove', onStagePointerMove);
+            window.removeEventListener('pointerup', stopDrag);
+            window.removeEventListener('pointercancel', stopDrag);
+
+            // Momentum glide
+            if (hasMoved && target && Math.abs(velocityX) > 0.2) {
+                let currentVelocity = velocityX * 12;
+                const glide = () => {
+                    if (Math.abs(currentVelocity) < 0.5) return;
+                    target.scrollLeft -= currentVelocity;
+                    currentVelocity *= 0.92;
+                    animationFrame = requestAnimationFrame(glide);
+                };
+                animationFrame = requestAnimationFrame(glide);
+            }
+        };
+
         // 1. Click & Drag Pan on the Track & Flow
         stage.addEventListener('pointerdown', (e) => {
+            if (e.button && e.button !== 0) return;
             if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.queue-drag-handle') ||
                 e.target.closest('.viewcard-resize-corner') || e.target.closest('.viewcard-resize-edge-bottom') ||
-                e.target.closest('.viewcard-resize-edge-side') || e.target.closest('.btn-card-action')) {
+                e.target.closest('.viewcard-resize-edge-side') || e.target.closest('.btn-card-action') ||
+                e.target.closest('.queue-track-header, .stack-track-header, .node-chain-header, .bintree-header')) {
                 return;
             }
 
@@ -4253,58 +4362,11 @@ public class Program
             activeTarget.classList.add('is-panning');
             document.body.classList.add('queue-dragging-active');
             try { activeTarget.setPointerCapture(e.pointerId); } catch (_) {}
+
+            window.addEventListener('pointermove', onStagePointerMove, { passive: false });
+            window.addEventListener('pointerup', stopDrag);
+            window.addEventListener('pointercancel', stopDrag);
         });
-
-        stage.addEventListener('pointermove', (e) => {
-            if (!isDown || !activeTarget) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-
-            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                hasMoved = true;
-            }
-
-            const now = performance.now();
-            const dt = Math.max(1, now - lastTime);
-            velocityX = (e.clientX - lastX) / dt;
-            lastX = e.clientX;
-            lastTime = now;
-
-            if (activeTarget !== stage) {
-                activeTarget.scrollLeft = scrollLeft - dx;
-            } else {
-                activeTarget.scrollLeft = scrollLeft - dx;
-                activeTarget.scrollTop = scrollTop - dy;
-            }
-        });
-
-        const stopDrag = (e) => {
-            if (!isDown) return;
-            isDown = false;
-            const target = activeTarget;
-
-            if (target) {
-                target.classList.remove('is-panning');
-                try { target.releasePointerCapture(e.pointerId); } catch (_) {}
-                activeTarget = null;
-            }
-            document.body.classList.remove('queue-dragging-active');
-
-            // Momentum glide
-            if (hasMoved && target && Math.abs(velocityX) > 0.2) {
-                let currentVelocity = velocityX * 12;
-                const glide = () => {
-                    if (Math.abs(currentVelocity) < 0.5) return;
-                    target.scrollLeft -= currentVelocity;
-                    currentVelocity *= 0.92;
-                    animationFrame = requestAnimationFrame(glide);
-                };
-                animationFrame = requestAnimationFrame(glide);
-            }
-        };
-
-        stage.addEventListener('pointerup', stopDrag);
-        stage.addEventListener('pointercancel', stopDrag);
 
         stage.addEventListener('click', (e) => {
             if (hasMoved) {
@@ -4320,7 +4382,8 @@ public class Program
         stage.addEventListener('dragstart', (e) => {
             const card = e.target.closest('.ds-view-card');
             if (!card) return;
-            if (e.target.closest('.btn-card-action') || e.target.closest('.viewcard-resize-corner') ||
+            const isHeader = e.target.closest('.queue-track-header, .stack-track-header, .node-chain-header, .bintree-header, .queue-drag-handle');
+            if (!isHeader || e.target.closest('.btn-card-action') || e.target.closest('.viewcard-resize-corner') ||
                 e.target.closest('.viewcard-resize-edge-bottom') || e.target.closest('.viewcard-resize-edge-side')) {
                 e.preventDefault();
                 return;
@@ -4350,7 +4413,7 @@ public class Program
             }
         });
 
-        stage.addEventListener('dragend', () => {
+        const onDragEnd = () => {
             if (draggedCard) {
                 draggedCard.classList.remove('is-dragging-card');
                 draggedCard = null;
@@ -4361,7 +4424,10 @@ public class Program
             this.viewCardOrder = Array.from(stage.querySelectorAll('.ds-view-card'))
                 .map(c => c.dataset.cardId)
                 .filter(Boolean);
-        });
+        };
+
+        stage.addEventListener('dragend', onDragEnd);
+        window.addEventListener('dragend', onDragEnd);
     }
 }
 
