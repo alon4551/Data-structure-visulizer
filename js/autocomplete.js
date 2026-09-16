@@ -5,13 +5,14 @@
  */
 
 class AutocompleteEngine {
-    constructor(textarea, popupContainer, onAcceptCallback, getActiveDsCallback = null) {
+    constructor(textarea, popupContainer, onAcceptCallback, getActiveDsCallback = null, getLanguageCallback = null) {
         this.textarea = textarea;
         this.popup = popupContainer;
         this.listEl = popupContainer.querySelector('#autocomplete-list');
         this.docEl = popupContainer.querySelector('#autocomplete-doc');
         this.onAccept = onAcceptCallback;
         this.getActiveDsCallback = getActiveDsCallback;
+        this.getLanguageCallback = getLanguageCallback;
 
         this.visible = false;
         this.items = [];
@@ -22,6 +23,18 @@ class AutocompleteEngine {
 
         this.catalog = this.initCatalog();
         this.bindEvents();
+    }
+
+    getCurrentLanguage() {
+        if (typeof this.getLanguageCallback === 'function') {
+            const lang = this.getLanguageCallback();
+            if (lang) return lang;
+        }
+        if (typeof window !== 'undefined') {
+            const app = window.visualizer || window.app;
+            if (app && app.currentLanguage) return app.currentLanguage;
+        }
+        return 'csharp';
     }
 
     getCurrentDataStructure(lowerObj = '') {
@@ -185,8 +198,42 @@ class AutocompleteEngine {
             // פעולות חוליה (Node<T>)
             // ==========================================
             {
+                id: 'node-getvalue',
+                label: 'GetValue()',
+                insertText: 'GetValue()',
+                cursorOffset: 0,
+                category: 'method',
+                ds: 'node',
+                typeBadge: 'T',
+                signature: 'public T GetValue()',
+                params: 'אין פרמטרים.',
+                returns: 'T — ערך המידע (value/info) השמור בחוליה.',
+                desc: 'מחזירה את ערך המידע המאוחסן בחוליה הנוכחית בשרשרת (לפי תקן Unit4.dll הרשמי של משרד החינוך). סיבוכיות זמן ריצה: O(1).',
+                triggersOnDot: true,
+                triggersStandalone: true,
+                keywords: ['getvalue', 'getval', 'get', 'val', 'value', 'node.getvalue', 'chain.getvalue', 'info'],
+                categoryBadge: 'פעולת חוליה (Node)'
+            },
+            {
+                id: 'node-setvalue',
+                label: 'SetValue(x)',
+                insertText: 'SetValue()',
+                cursorOffset: -1,
+                category: 'method',
+                ds: 'node',
+                typeBadge: 'void',
+                signature: 'public void SetValue(T x)',
+                params: 'T x — ערך המידע החדש להשמה בחוליה.',
+                returns: 'void — אינה מחזירה ערך.',
+                desc: 'מעדכנת ומשנה את ערך המידע המאוחסן בחוליה הנוכחית לערך x (לפי תקן Unit4.dll הרשמי של משרד החינוך). סיבוכיות זמן ריצה: O(1).',
+                triggersOnDot: true,
+                triggersStandalone: true,
+                keywords: ['setvalue', 'setval', 'set', 'val', 'value', 'node.setvalue', 'chain.setvalue'],
+                categoryBadge: 'פעולת חוליה (Node)'
+            },
+            {
                 id: 'node-getinfo',
-                label: 'GetInfo()',
+                label: 'GetInfo() [כינוי / Alias]',
                 insertText: 'GetInfo()',
                 cursorOffset: 0,
                 category: 'method',
@@ -195,7 +242,7 @@ class AutocompleteEngine {
                 signature: 'public T GetInfo()',
                 params: 'אין פרמטרים.',
                 returns: 'T — ערך המידע (info) השמור בחוליה.',
-                desc: 'מחזירה את ערך המידע המאוחסן בחוליה הנוכחית בשרשרת החוליות. הפעולה אינה משנה את השרשרת. סיבוכיות זמן ריצה: O(1).',
+                desc: 'כינוי נרדף (Alias) לפעולה GetValue() הנהוג בחלק מספרי הלימוד. נתמך במלואו בסביבה. סיבוכיות זמן ריצה: O(1).',
                 triggersOnDot: true,
                 triggersStandalone: true,
                 keywords: ['getinfo', 'get', 'info', 'val', 'value', 'node.getinfo', 'chain.getinfo'],
@@ -203,7 +250,7 @@ class AutocompleteEngine {
             },
             {
                 id: 'node-setinfo',
-                label: 'SetInfo(x)',
+                label: 'SetInfo(x) [כינוי / Alias]',
                 insertText: 'SetInfo()',
                 cursorOffset: -1,
                 category: 'method',
@@ -212,7 +259,7 @@ class AutocompleteEngine {
                 signature: 'public void SetInfo(T x)',
                 params: 'T x — ערך המידע החדש להשמה בחוליה.',
                 returns: 'void — אינה מחזירה ערך.',
-                desc: 'מעדכנת ומשנה את ערך המידע (info) המאוחסן בחוליה הנוכחית לערך x. סיבוכיות זמן ריצה: O(1).',
+                desc: 'כינוי נרדף (Alias) לפעולה SetValue(x) הנהוג בחלק מספרי הלימוד. נתמך במלואו בסביבה. סיבוכיות זמן ריצה: O(1).',
                 triggersOnDot: true,
                 triggersStandalone: true,
                 keywords: ['setinfo', 'set', 'info', 'update', 'node.setinfo', 'chain.setinfo'],
@@ -284,7 +331,7 @@ class AutocompleteEngine {
                 signature: 'public T GetValue()',
                 params: 'אין פרמטרים.',
                 returns: 'T — ערך המידע (value) השמור בצומת העץ הנוכחי.',
-                desc: 'מחזירה את ערך המידע השמור בצומת הנוכחי של העץ הבינארי. ⚠️ שים לב: בעץ בינארי הפעולה נקראת GetValue() (להבדיל מ-GetInfo() בחוליה). סיבוכיות זמן ריצה: O(1).',
+                desc: 'מחזירה את ערך המידע השמור בצומת הנוכחי של העץ הבינארי (לפי תקן Unit4.dll הרשמי של משרד החינוך). סיבוכיות זמן ריצה: O(1).',
                 triggersOnDot: true,
                 triggersStandalone: true,
                 keywords: ['getvalue', 'getval', 'val', 'value', 'tree.getvalue', 'binnode.getvalue', 'root.getvalue'],
@@ -454,6 +501,7 @@ class AutocompleteEngine {
                 cursorOffset: -1,
                 category: 'console',
                 ds: 'all',
+                lang: 'csharp',
                 typeBadge: 'void',
                 signature: 'public static void WriteLine(object value)',
                 params: 'ערך, משתנה, מחרוזת, או ביטוי להדפסה (כולל שרשור מחרוזות באמצעות + ותבניות עיצוב).',
@@ -471,6 +519,7 @@ class AutocompleteEngine {
                 cursorOffset: -1,
                 category: 'console',
                 ds: 'all',
+                lang: 'csharp',
                 typeBadge: 'void',
                 signature: 'public static void Write(object value)',
                 params: 'ערך או מחרוזת להדפסה.',
@@ -492,6 +541,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'class',
                 ds: 'queue',
+                lang: 'csharp',
                 typeBadge: 'Queue<int>',
                 signature: 'Queue<int> temp = new Queue<int>();',
                 params: 'אין פרמטרים (בנאי ברירת מחדל ריק).',
@@ -509,6 +559,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'class',
                 ds: 'stack',
+                lang: 'csharp',
                 typeBadge: 'Stack<int>',
                 signature: 'Stack<int> temp = new Stack<int>();',
                 params: 'אין פרמטרים (בנאי ברירת מחדל ריק).',
@@ -526,6 +577,7 @@ class AutocompleteEngine {
                 cursorOffset: -1,
                 category: 'class',
                 ds: 'node',
+                lang: 'csharp',
                 typeBadge: 'Node<int>',
                 signature: 'Node<int> node = new Node<int>(x);',
                 params: 'int x — ערך המידע בחוליה. ההפניה לעוקב תאותחל ל-null.',
@@ -543,6 +595,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'class',
                 ds: 'node',
+                lang: 'csharp',
                 typeBadge: 'Node<int>',
                 signature: 'Node<int> chain = new Node<int>(x, next);',
                 params: 'int x — ערך המידע, Node<int> next — הפניה לחוליה הבאה.',
@@ -560,6 +613,7 @@ class AutocompleteEngine {
                 cursorOffset: -1,
                 category: 'class',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'BinNode<int>',
                 signature: 'BinNode<int> leaf = new BinNode<int>(x);',
                 params: 'int x — ערך המידע בצומת (הבנים שמאל וימין מאותחלים ל-null).',
@@ -577,6 +631,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'class',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'BinNode<int>',
                 signature: 'BinNode<int> root = new BinNode<int>(left, x, right);',
                 params: 'BinNode<int> left — בן שמאלי, int x — ערך הצומת, BinNode<int> right — בן ימני.',
@@ -602,6 +657,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'queue',
+                lang: 'csharp',
                 typeBadge: 'תבנית תור',
                 signature: 'while (!q.IsEmpty())',
                 params: 'בדיקת תנאי תור ריק.',
@@ -623,6 +679,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'stack',
+                lang: 'csharp',
                 typeBadge: 'תבנית מחסנית',
                 signature: 'while (!st.IsEmpty())',
                 params: 'בדיקת תנאי מחסנית ריקה.',
@@ -650,6 +707,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'stack',
+                lang: 'csharp',
                 typeBadge: 'סריקה ושחזור',
                 signature: 'Stack<int> temp = new Stack<int>(); while (!st.IsEmpty()) ...',
                 params: 'סריקת מחסנית ושמירת איבריה במחסנית עזר לשחזור.',
@@ -677,6 +735,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'queue',
+                lang: 'csharp',
                 typeBadge: 'סריקה ושחזור',
                 signature: 'Queue<int> temp = new Queue<int>(); while (!q.IsEmpty()) ...',
                 params: 'סריקת תור ושמירת איבריו בתור עזר לשחזור.',
@@ -693,13 +752,14 @@ class AutocompleteEngine {
                 insertText: `Node<int> pos = chain;
     while (pos != null)
     {
-        int val = pos.GetInfo();
+        int val = pos.GetValue();
         
         pos = pos.GetNext();
     }`,
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'node',
+                lang: 'csharp',
                 typeBadge: 'סריקת חוליות',
                 signature: 'Node<int> pos = chain; while (pos != null)',
                 params: 'שרשרת חוליות לסריקה.',
@@ -717,6 +777,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'node',
+                lang: 'csharp',
                 typeBadge: 'הוספה לראש',
                 signature: 'chain = new Node<int>(x, chain);',
                 params: 'ערך להוספה ושרשרת מקור.',
@@ -742,6 +803,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'סריקה תוכית (InOrder)',
                 signature: 'public static void InOrder(BinNode<int> root)',
                 params: 'שורש העץ או תת-העץ לסריקה.',
@@ -767,6 +829,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'סריקה תחילית (PreOrder)',
                 signature: 'public static void PreOrder(BinNode<int> root)',
                 params: 'שורש העץ או תת-העץ לסריקה.',
@@ -792,6 +855,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'סריקה סופית (PostOrder)',
                 signature: 'public static void PostOrder(BinNode<int> root)',
                 params: 'שורש העץ או תת-העץ לסריקה.',
@@ -814,6 +878,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'ספירת צמתים',
                 signature: 'public static int CountNodes(BinNode<int> root)',
                 params: 'שורש העץ.',
@@ -836,6 +901,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'סכום ערכים בעץ',
                 signature: 'public static int SumTree(BinNode<int> root)',
                 params: 'שורש עץ שלמים.',
@@ -863,6 +929,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'queue',
+                lang: 'csharp',
                 typeBadge: 'תוכנית ראשית',
                 signature: 'public class Program { public static void Main(Queue<int> q) }',
                 params: 'מחלקה עוטפת ופעולת Main המקבלת תור q.',
@@ -886,6 +953,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'stack',
+                lang: 'csharp',
                 typeBadge: 'תוכנית ראשית',
                 signature: 'public class Program { public static void Main(Stack<int> st) }',
                 params: 'מחלקה עוטפת ופעולת Main המקבלת מחסנית st.',
@@ -909,6 +977,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'node',
+                lang: 'csharp',
                 typeBadge: 'תוכנית ראשית',
                 signature: 'public class Program { public static void Main(Node<int> chain) }',
                 params: 'מחלקה עוטפת ופעולת Main המקבלת שרשרת חוליות chain.',
@@ -932,6 +1001,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'binnode',
+                lang: 'csharp',
                 typeBadge: 'תוכנית ראשית',
                 signature: 'public class Program { public static void Main(BinNode<int> root) }',
                 params: 'מחלקה עוטפת ופעולת Main המקבלת שורש עץ בינארי root.',
@@ -953,6 +1023,7 @@ class AutocompleteEngine {
                 cursorOffset: 0,
                 category: 'snippet',
                 ds: 'all',
+                lang: 'csharp',
                 typeBadge: 'מאפיין (Property)',
                 signature: 'public int X { get; set; }',
                 params: 'הגדרת מאפיין אוטומטי.',
@@ -1069,6 +1140,453 @@ class AutocompleteEngine {
                 triggersStandalone: true,
                 keywords: ['queue<queue', 'new queue<queue', 'queue of queue', 'superq'],
                 categoryBadge: 'תור מקונן (Queue of Queue)'
+            },
+
+            // ==========================================
+            // פעולות, פלט ותבניות שפת Java
+            // ==========================================
+            {
+                id: 'java-sysout-println',
+                label: 'System.out.println(x)',
+                insertText: 'System.out.println();',
+                cursorOffset: -2,
+                category: 'snippet',
+                ds: 'all',
+                lang: 'java',
+                typeBadge: 'פלט (Java)',
+                signature: 'System.out.println(Object x)',
+                params: 'ערך או מחרוזת להדפסה.',
+                returns: 'הדפסת פלט לשורה חדשה.',
+                desc: 'מדפיסה שורת פלט למסוף ועוברת שורה (המקבילה ב-Java ל-Console.WriteLine ב-C#). ניתן לרשום קיצור sysout או sout.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['sysout', 'sout', 'system.out.println', 'println', 'print', 'system.out'],
+                categoryBadge: 'פלט Java (System.out)'
+            },
+            {
+                id: 'java-sysout-print',
+                label: 'System.out.print(x)',
+                insertText: 'System.out.print();',
+                cursorOffset: -2,
+                category: 'snippet',
+                ds: 'all',
+                lang: 'java',
+                typeBadge: 'פלט (Java)',
+                signature: 'System.out.print(Object x)',
+                params: 'ערך או מחרוזת להדפסה.',
+                returns: 'הדפסת פלט ללא מעבר שורה.',
+                desc: 'מדפיסה פלט למסוף ללא מעבר שורה ב-Java.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['print', 'system.out.print'],
+                categoryBadge: 'פלט Java (System.out)'
+            },
+            {
+                id: 'java-while-queue',
+                label: 'while (!q.isEmpty()) [Java]',
+                insertText: `while (!q.isEmpty())
+    {
+        int x = q.remove();
+        System.out.println(x);
+    }`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'queue',
+                lang: 'java',
+                typeBadge: 'סריקת תור ב-Java',
+                signature: 'while (!q.isEmpty())',
+                params: 'תור q ב-Java.',
+                returns: 'מעבר מרוקן על כל איברי התור.',
+                desc: 'תבנית סריקה וריקון סטנדרטית לתור ב-Java באמצעות q.remove() ו-q.isEmpty().',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['while queue', 'while (!q.isEmpty())', 'queue loop java', 'scan queue java'],
+                categoryBadge: 'תבנית תור (Java Snippet)'
+            },
+            {
+                id: 'java-while-stack',
+                label: 'while (!st.isEmpty()) [Java]',
+                insertText: `while (!st.isEmpty())
+    {
+        int x = st.pop();
+        System.out.println(x);
+    }`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'stack',
+                lang: 'java',
+                typeBadge: 'סריקת מחסנית ב-Java',
+                signature: 'while (!st.isEmpty())',
+                params: 'מחסנית st ב-Java.',
+                returns: 'מעבר וריקון מחסנית מלמעלה למטה.',
+                desc: 'תבנית סריקה וריקון סטנדרטית למחסנית ב-Java באמצעות st.pop() ו-st.isEmpty().',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['while stack', 'while (!st.isEmpty())', 'stack loop java', 'scan stack java'],
+                categoryBadge: 'תבנית מחסנית (Java Snippet)'
+            },
+            {
+                id: 'java-while-node',
+                label: 'Node runner: while (pos != null) [Java]',
+                insertText: `Node<Integer> pos = chain;
+    while (pos != null)
+    {
+        int val = pos.getValue();
+        System.out.println(val);
+        pos = pos.getNext();
+    }`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'node',
+                lang: 'java',
+                typeBadge: 'סריקת חוליות ב-Java',
+                signature: 'Node<Integer> pos = chain; while (pos != null)',
+                params: 'שרשרת חוליות Node<Integer> ב-Java.',
+                returns: 'סריקת שרשרת חוליות עם מצביע ריצה pos.',
+                desc: 'תבנית סריקה סטנדרטית בבגרות במדעי המחשב ב-Java עם מצביע עזר pos.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['while node java', 'node runner java', 'scan chain java'],
+                categoryBadge: 'תבנית חוליות (Java Snippet)'
+            },
+            {
+                id: 'java-class-main-queue',
+                label: 'public class Main (Java Queue)',
+                insertText: `import java.util.*;
+import unit4.collectionsLib.*;
+
+public class Main
+{
+    public static void main(Queue<Integer> q)
+    {
+        
+    }
+}`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'queue',
+                lang: 'java',
+                typeBadge: 'תוכנית Java ראשית',
+                signature: 'public class Main { public static void main(Queue<Integer> q) }',
+                params: 'מחלקת Main עם פעולת כניסה לתור ב-Java.',
+                returns: 'שלד תוכנית תקני ב-Java.',
+                desc: 'שלד תוכנית Java עם מחלקת Main ופעולת main המקבלת תור q.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['main java', 'class main java', 'java queue main'],
+                categoryBadge: 'תוכנית ראשית (Java Main)'
+            },
+            {
+                id: 'java-class-main-stack',
+                label: 'public class Main (Java Stack)',
+                insertText: `import java.util.*;
+import unit4.collectionsLib.*;
+
+public class Main
+{
+    public static void main(Stack<Integer> s)
+    {
+        
+    }
+}`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'stack',
+                lang: 'java',
+                typeBadge: 'תוכנית Java ראשית',
+                signature: 'public class Main { public static void main(Stack<Integer> s) }',
+                params: 'מחלקת Main עם פעולת כניסה למחסנית ב-Java.',
+                returns: 'שלד תוכנית תקני ב-Java.',
+                desc: 'שלד תוכנית Java עם מחלקת Main ופעולת main המקבלת מחסנית s.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['main stack java', 'class main stack java'],
+                categoryBadge: 'תוכנית ראשית (Java Main)'
+            },
+            {
+                id: 'java-class-main-node',
+                label: 'public class Main (Java Node)',
+                insertText: `import java.util.*;
+import unit4.collectionsLib.*;
+
+public class Main
+{
+    public static void main(Node<Integer> chain)
+    {
+        
+    }
+}`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'node',
+                lang: 'java',
+                typeBadge: 'תוכנית Java ראשית',
+                signature: 'public class Main { public static void main(Node<Integer> chain) }',
+                params: 'מחלקת Main עם פעולת כניסה לשרשרת חוליות ב-Java.',
+                returns: 'שלד תוכנית תקני ב-Java.',
+                desc: 'שלד תוכנית Java עם מחלקת Main ופעולת main המקבלת שרשרת חוליות chain.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['main node java', 'class main node java'],
+                categoryBadge: 'תוכנית ראשית (Java Main)'
+            },
+            {
+                id: 'java-class-main-binnode',
+                label: 'public class Main (Java BinNode)',
+                insertText: `import java.util.*;
+import unit4.collectionsLib.*;
+
+public class Main
+{
+    public static void main(BinNode<Integer> root)
+    {
+        
+    }
+}`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'binnode',
+                lang: 'java',
+                typeBadge: 'תוכנית Java ראשית',
+                signature: 'public class Main { public static void main(BinNode<Integer> root) }',
+                params: 'מחלקת Main עם פעולת כניסה לעץ בינארי ב-Java.',
+                returns: 'שלד תוכנית תקני ב-Java.',
+                desc: 'שלד תוכנית Java עם מחלקת Main ופעולת main המקבלת שורש עץ בינארי root.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['main tree java', 'main binnode java'],
+                categoryBadge: 'תוכנית ראשית (Java Main)'
+            },
+            {
+                id: 'java-new-queue',
+                label: 'new Queue<Integer>()',
+                insertText: 'new Queue<Integer>()',
+                cursorOffset: 0,
+                category: 'class',
+                ds: 'queue',
+                lang: 'java',
+                typeBadge: 'Queue<Integer>',
+                signature: 'Queue<Integer> q = new Queue<Integer>();',
+                params: 'אין פרמטרים (בנאי ברירת מחדל ריק ב-Java).',
+                returns: 'מופע תור חדש וריק.',
+                desc: 'יוצרת מופע חדש וריק של תור שלמים (Queue<Integer>) ב-Java לפי ספריית unit4.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['new queue java', 'queue<integer>', 'new queue<integer>'],
+                categoryBadge: 'מבנה נתונים (Queue Java)'
+            },
+            {
+                id: 'java-new-stack',
+                label: 'new Stack<Integer>()',
+                insertText: 'new Stack<Integer>()',
+                cursorOffset: 0,
+                category: 'class',
+                ds: 'stack',
+                lang: 'java',
+                typeBadge: 'Stack<Integer>',
+                signature: 'Stack<Integer> st = new Stack<Integer>();',
+                params: 'אין פרמטרים (בנאי ברירת מחדל ריק ב-Java).',
+                returns: 'מופע מחסנית חדש וריק.',
+                desc: 'יוצרת מופע חדש וריק של מחסנית שלמים (Stack<Integer>) ב-Java לפי ספריית unit4.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['new stack java', 'stack<integer>', 'new stack<integer>'],
+                categoryBadge: 'מבנה נתונים (Stack Java)'
+            },
+            {
+                id: 'java-new-node',
+                label: 'new Node<Integer>(x)',
+                insertText: 'new Node<Integer>()',
+                cursorOffset: -1,
+                category: 'class',
+                ds: 'node',
+                lang: 'java',
+                typeBadge: 'Node<Integer>',
+                signature: 'Node<Integer> node = new Node<Integer>(x);',
+                params: 'int x — ערך המידע בחוליה ב-Java.',
+                returns: 'מופע חוליה חדש עם ערך x.',
+                desc: 'בנאי היוצר חוליה חדשה ומבודדת עם הערך x ב-Java (ההפניה לחוליה הבאה תהיה null).',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['new node java', 'node<integer>', 'new node<integer>'],
+                categoryBadge: 'בנאי חוליה (Node Java)'
+            },
+            {
+                id: 'java-new-node-next',
+                label: 'new Node<Integer>(x, next)',
+                insertText: 'new Node<Integer>(x, next)',
+                cursorOffset: 0,
+                category: 'class',
+                ds: 'node',
+                lang: 'java',
+                typeBadge: 'Node<Integer>',
+                signature: 'Node<Integer> chain = new Node<Integer>(x, next);',
+                params: 'int x — ערך המידע, Node<Integer> next — הפניה לחוליה הבאה.',
+                returns: 'מופע חוליה חדש המקושר לחוליה הבאה.',
+                desc: 'בנאי היוצר חוליה חדשה ומקשר אותה לעוקב הבא next ב-Java.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['new node next java', 'node<integer>(x, next)'],
+                categoryBadge: 'בנאי חוליה (Node Java)'
+            },
+            {
+                id: 'java-new-binnode',
+                label: 'new BinNode<Integer>(x)',
+                insertText: 'new BinNode<Integer>()',
+                cursorOffset: -1,
+                category: 'class',
+                ds: 'binnode',
+                lang: 'java',
+                typeBadge: 'BinNode<Integer>',
+                signature: 'BinNode<Integer> leaf = new BinNode<Integer>(x);',
+                params: 'int x — ערך המידע בצומת עלה ב-Java.',
+                returns: 'מופע צומת עלה חדש.',
+                desc: 'בנאי היוצר צומת עלה חדש עם הערך x ב-Java.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['new binnode java', 'binnode<integer>'],
+                categoryBadge: 'בנאי עץ בינארי (BinNode Java)'
+            },
+            {
+                id: 'java-new-binnode-full',
+                label: 'new BinNode<Integer>(left, x, right)',
+                insertText: 'new BinNode<Integer>(left, x, right)',
+                cursorOffset: 0,
+                category: 'class',
+                ds: 'binnode',
+                lang: 'java',
+                typeBadge: 'BinNode<Integer>',
+                signature: 'BinNode<Integer> root = new BinNode<Integer>(left, x, right);',
+                params: 'BinNode<Integer> left — שמאל, int x — ערך, BinNode<Integer> right — ימין.',
+                returns: 'מופע צומת עץ בינארי חדש ב-Java.',
+                desc: 'בנאי היוצר צומת עץ בינארי ומקשר אליו ישירות תת-עץ שמאלי ותת-עץ ימני לפי תקן unit4 ב-Java.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['new binnode full java', 'binnode(left, x, right) java'],
+                categoryBadge: 'בנאי עץ בינארי (BinNode Java)'
+            },
+            {
+                id: 'java-queue-restore',
+                label: 'Queue scan & restore [Java]',
+                insertText: `Queue<Integer> temp = new Queue<Integer>();
+    while (!q.isEmpty())
+    {
+        int x = q.remove();
+        
+        temp.insert(x);
+    }
+    while (!temp.isEmpty())
+    {
+        q.insert(temp.remove());
+    }`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'queue',
+                lang: 'java',
+                typeBadge: 'סריקה ושחזור ב-Java',
+                signature: 'Queue<Integer> temp = new Queue<Integer>(); while (!q.isEmpty()) ...',
+                params: 'סריקת תור q ושמירתו בתור עזר temp ב-Java.',
+                returns: 'מעבר על כל איברי התור והחזרתם למצב המקורי.',
+                desc: 'תבנית עבודה קלאסית בבגרות ב-Java: סריקת תור ושחזורו המלא.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['queue restore java', 'restore queue java', 'temp queue java'],
+                categoryBadge: 'תבנית תור (Java Snippet)'
+            },
+            {
+                id: 'java-stack-restore',
+                label: 'Stack scan & restore [Java]',
+                insertText: `Stack<Integer> temp = new Stack<Integer>();
+    while (!st.isEmpty())
+    {
+        int x = st.pop();
+        
+        temp.push(x);
+    }
+    while (!temp.isEmpty())
+    {
+        st.push(temp.pop());
+    }`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'stack',
+                lang: 'java',
+                typeBadge: 'סריקה ושחזור ב-Java',
+                signature: 'Stack<Integer> temp = new Stack<Integer>(); while (!st.isEmpty()) ...',
+                params: 'סריקת מחסנית st ושמירתה במחסנית עזר temp ב-Java.',
+                returns: 'מעבר על כל איברי המחסנית והחזרתם למצב המקורי.',
+                desc: 'תבנית עבודה קלאסית בבגרות ב-Java: סריקת מחסנית ושחזורה המלא.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['stack restore java', 'restore stack java', 'temp stack java'],
+                categoryBadge: 'תבנית מחסנית (Java Snippet)'
+            },
+            {
+                id: 'java-node-insert-head',
+                label: 'Insert first: chain = new Node<Integer>(x, chain); [Java]',
+                insertText: 'chain = new Node<Integer>(x, chain);',
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'node',
+                lang: 'java',
+                typeBadge: 'הוספה לראש ב-Java',
+                signature: 'chain = new Node<Integer>(x, chain);',
+                params: 'ערך להוספה ושרשרת מקור ב-Java.',
+                returns: 'עדכון ראש השרשרת ב-O(1).',
+                desc: 'הוספת חוליה חדשה לראש שרשרת חוליות ב-Java בסיבוכיות O(1).',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['insert first java', 'add first java', 'chain = new node java'],
+                categoryBadge: 'תבנית חוליות (Java Snippet)'
+            },
+            {
+                id: 'java-inorder',
+                label: 'inOrder Traversal: inOrder(root) [Java]',
+                insertText: `public static void inOrder(BinNode<Integer> root)
+    {
+        if (root != null)
+        {
+            inOrder(root.getLeft());
+            System.out.println(root.getValue());
+            inOrder(root.getRight());
+        }
+    }`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'binnode',
+                lang: 'java',
+                typeBadge: 'סריקה תוכית (Java InOrder)',
+                signature: 'public static void inOrder(BinNode<Integer> root)',
+                params: 'שורש עץ בינארי ב-Java.',
+                returns: 'סריקה רקורסיבית תוכה: שמאל, שורש, ימין.',
+                desc: 'סריקה בסדר תוכי (In-Order) ב-Java: מדפיסה איברים ממוינים בעץ חיפוש בינארי.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['inorder java', 'in-order java', 'scan tree java'],
+                categoryBadge: 'תבנית עץ בינארי (Java Snippet)'
+            },
+            {
+                id: 'java-count-nodes',
+                label: 'countNodes(root) [Java]',
+                insertText: `public static int countNodes(BinNode<Integer> root)
+    {
+        if (root == null)
+            return 0;
+        return 1 + countNodes(root.getLeft()) + countNodes(root.getRight());
+    }`,
+                cursorOffset: 0,
+                category: 'snippet',
+                ds: 'binnode',
+                lang: 'java',
+                typeBadge: 'ספירת צמתים ב-Java',
+                signature: 'public static int countNodes(BinNode<Integer> root)',
+                params: 'שורש עץ בינארי ב-Java.',
+                returns: 'סך הצמתים הכולל בעץ.',
+                desc: 'ספירה רקורסיבית של כמות הצמתים בעץ בינארי ב-Java.',
+                triggersOnDot: false,
+                triggersStandalone: true,
+                keywords: ['countnodes java', 'count tree java', 'nodes java'],
+                categoryBadge: 'תבנית עץ בינארי (Java Snippet)'
             }
         ];
     }
@@ -1103,8 +1621,9 @@ class AutocompleteEngine {
         const caretPos = this.textarea.selectionStart;
         const textBeforeCaret = this.textarea.value.substring(0, caretPos);
         const currentLine = textBeforeCaret.substring(textBeforeCaret.lastIndexOf('\n') + 1);
+        const currentLang = this.getCurrentLanguage();
 
-        // בדיקה 1: אם יש נקודה לפני הסמן (למשל: q. או st. או chain. או root. או console.)
+        // בדיקה 1: אם יש נקודה לפני הסמן (למשל: q. או st. או chain. או root. או console. או out.)
         const dotMatch = currentLine.match(/(?:([a-zA-Z_]\w*)\s*\.\s*)([a-zA-Z_]\w*)?$/);
         if (dotMatch) {
             this.onInput();
@@ -1117,18 +1636,21 @@ class AutocompleteEngine {
             const word = wordMatch[1];
             const lowerWord = word.toLowerCase();
             const matches = this.catalog.filter(item => {
+                if (item.lang && currentLang && item.lang !== currentLang) return false;
                 return item.label.toLowerCase().includes(lowerWord) ||
                        item.keywords.some(k => k.includes(lowerWord));
             });
             if (matches.length > 0) {
                 const activeDs = this.getCurrentDataStructure();
-                if (activeDs) {
-                    matches.sort((a, b) => {
-                        const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
-                        const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
-                        return matchB - matchA;
-                    });
-                }
+                matches.sort((a, b) => {
+                    const langA = (a.lang === currentLang) ? 2 : (!a.lang ? 1 : 0);
+                    const langB = (b.lang === currentLang) ? 2 : (!b.lang ? 1 : 0);
+                    if (langA !== langB) return langB - langA;
+
+                    const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
+                    const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
+                    return matchB - matchA;
+                });
                 this.replaceStart = caretPos - word.length;
                 this.replaceEnd = caretPos;
                 this.showSuggestions(matches, word);
@@ -1136,18 +1658,20 @@ class AutocompleteEngine {
             }
         }
 
-        // בדיקה 3: אם אין תחילית כלל - נציג את כל הקטלוג העשיר לבחירה עם ניעדוף למבנה הפעיל
+        // בדיקה 3: אם אין תחילית כלל - נציג את כל הקטלוג העשיר לבחירה עם ניעדוף למבנה הפעיל ולשפה
         this.replaceStart = caretPos;
         this.replaceEnd = caretPos;
-        let list = this.catalog.slice();
+        let list = this.catalog.filter(item => !item.lang || !currentLang || item.lang === currentLang);
         const activeDs = this.getCurrentDataStructure();
-        if (activeDs) {
-            list.sort((a, b) => {
-                const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
-                const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
-                return matchB - matchA;
-            });
-        }
+        list.sort((a, b) => {
+            const langA = (a.lang === currentLang) ? 2 : (!a.lang ? 1 : 0);
+            const langB = (b.lang === currentLang) ? 2 : (!b.lang ? 1 : 0);
+            if (langA !== langB) return langB - langA;
+
+            const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
+            const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
+            return matchB - matchA;
+        });
         this.showSuggestions(list, '');
     }
 
@@ -1159,8 +1683,9 @@ class AutocompleteEngine {
         const caretPos = this.textarea.selectionStart;
         const textBeforeCaret = this.textarea.value.substring(0, caretPos);
         const currentLine = textBeforeCaret.substring(textBeforeCaret.lastIndexOf('\n') + 1);
+        const currentLang = this.getCurrentLanguage();
 
-        // בדיקה 1: האם המשתמש מקליד אחרי נקודה (Member access, למשל: q.isEmp, temp.in, chain.get, root.is, console.wr)
+        // בדיקה 1: האם המשתמש מקליד אחרי נקודה (Member access, למשל: q.isEmp, temp.in, chain.get, root.is, console.wr, System.out.)
         const dotMatch = currentLine.match(/(?:([a-zA-Z_]\w*)\s*\.\s*)([a-zA-Z_]\w*)?$/);
         if (dotMatch) {
             const objectName = dotMatch[1];
@@ -1172,6 +1697,7 @@ class AutocompleteEngine {
                 // המשתמש הקליד console. או console.wr -> נציע פעולות Console ונחליף את כל הביטוי ל-Console.WriteLine()
                 const matches = this.catalog.filter(item => 
                     item.category === 'console' && 
+                    (!item.lang || !currentLang || item.lang === currentLang) &&
                     (item.label.toLowerCase().includes(lowerPrefix) || item.keywords.some(k => k.includes(lowerPrefix)))
                 );
 
@@ -1181,23 +1707,37 @@ class AutocompleteEngine {
                     this.showSuggestions(matches, memberPrefix);
                     return;
                 }
+            } else if (lowerObj === 'out' || lowerObj === 'system') {
+                // המשתמש הקליד out. או System.out. ב-Java -> נציע פעולות System.out
+                const matches = this.catalog.filter(item => 
+                    item.id && item.id.startsWith('java-sysout') && 
+                    (item.label.toLowerCase().includes(lowerPrefix) || item.keywords.some(k => k.includes(lowerPrefix)))
+                );
+
+                if (matches.length > 0) {
+                    const fullMatch = currentLine.match(/(?:System\s*\.\s*)?out\s*\.\s*([a-zA-Z_]\w*)?$/i);
+                    const replaceLen = fullMatch ? fullMatch[0].length : dotMatch[0].length;
+                    this.replaceStart = caretPos - replaceLen;
+                    this.replaceEnd = caretPos;
+                    this.showSuggestions(matches, memberPrefix);
+                    return;
+                }
             } else {
                 // אובייקט אחר לפני נקודה (למשל תור q, מחסנית st, חוליה chain/pos, עץ root/t)
                 const matches = this.catalog.filter(item => 
                     item.triggersOnDot &&
                     item.category === 'method' &&
+                    (!item.lang || !currentLang || item.lang === currentLang) &&
                     (item.label.toLowerCase().startsWith(lowerPrefix) || item.keywords.some(k => k.startsWith(lowerPrefix)))
                 );
 
                 if (matches.length > 0) {
                     const activeDs = this.getCurrentDataStructure(lowerObj);
-                    if (activeDs) {
-                        matches.sort((a, b) => {
-                            const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
-                            const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
-                            return matchB - matchA;
-                        });
-                    }
+                    matches.sort((a, b) => {
+                        const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
+                        const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
+                        return matchB - matchA;
+                    });
 
                     this.replaceStart = caretPos - memberPrefix.length;
                     this.replaceEnd = caretPos;
@@ -1207,7 +1747,7 @@ class AutocompleteEngine {
             }
         }
 
-        // בדיקה 2: מילה עצמאית שנכתבת (למשל: con, writeline, isempty, getval, getinfo, new, while, rem)
+        // בדיקה 2: מילה עצמאית שנכתבת (למשל: con, writeline, sysout, sout, isempty, getval, getinfo, new, while, rem)
         const wordMatch = currentLine.match(/([a-zA-Z_]\w*)$/);
         if (wordMatch) {
             const word = wordMatch[1];
@@ -1217,19 +1757,22 @@ class AutocompleteEngine {
             if (lowerWord.length >= 2) {
                 const matches = this.catalog.filter(item => {
                     if (!item.triggersStandalone) return false;
+                    if (item.lang && currentLang && item.lang !== currentLang) return false;
                     return item.label.toLowerCase().startsWith(lowerWord) ||
                            item.keywords.some(k => k.startsWith(lowerWord));
                 });
 
                 if (matches.length > 0) {
                     const activeDs = this.getCurrentDataStructure();
-                    if (activeDs) {
-                        matches.sort((a, b) => {
-                            const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
-                            const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
-                            return matchB - matchA;
-                        });
-                    }
+                    matches.sort((a, b) => {
+                        const langA = (a.lang === currentLang) ? 2 : (!a.lang ? 1 : 0);
+                        const langB = (b.lang === currentLang) ? 2 : (!b.lang ? 1 : 0);
+                        if (langA !== langB) return langB - langA;
+
+                        const matchA = (a.ds === activeDs || (activeDs === 'stack' && a.id === 'queue-isempty')) ? 1 : 0;
+                        const matchB = (b.ds === activeDs || (activeDs === 'stack' && b.id === 'queue-isempty')) ? 1 : 0;
+                        return matchB - matchA;
+                    });
 
                     this.replaceStart = caretPos - word.length;
                     this.replaceEnd = caretPos;

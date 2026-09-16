@@ -66,7 +66,7 @@
             <div class="brand-title">
                 <div class="brand-icon">🔄</div>
                 <div>
-                    <h1>סטודיו מבני נתונים ב-C# (Data Structures Studio)</h1>
+                    <h1>סטודיו מבני נתונים ב-C# ו-Java (Data Structures Studio)</h1>
                     <p>מרכז מדעי המחשב — אלון שרייבמן | שכבת י"ב (יחידה 4)</p>
                 </div>
             </div>
@@ -93,6 +93,14 @@
                     <span class="mode-icon">🌳</span>
                     <span>עץ בינארי (BinNode)</span>
                 </button>
+                <a href="../../4_oop_and_inheritance/visualizer/index.html" class="btn-studio-mode" style="text-decoration: none; border-color: rgba(99, 102, 241, 0.4); color: #c7d2fe;" title="מעבר לסטודיו OOP והורשה (בובות רוסיות)">
+                    <span class="mode-icon">🏛️</span>
+                    <span>OOP והורשה</span>
+                </a>
+                <a href="../../../10th_grade_csharp/visualizer/index.html" class="btn-studio-mode" style="text-decoration: none; border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc;" title="מעבר לסטודיו יסודות מדעי המחשב לשכבת י' (מערכים, מטריצות, טבלת מעקב)">
+                    <span class="mode-icon">💻</span>
+                    <span>יסודות (שכבת י')</span>
+                </a>
             </div>
         </div>
     </header>
@@ -118,8 +126,9 @@
                         </button>
                     </div>
                     <div class="card-header-actions">
-                        <span class="badge badge-drag-hint" id="queue-drag-hint" title="לחץ וגרור את מסילת התור עם העכבר להזזה חופשית">🖐️ גרור תור</span>
+                        <span class="badge badge-drag-hint" id="queue-drag-hint" title="ניתן לגרור כרטיסים לשינוי סדר ולגרור את פינותיהם לשינוי רוחב וגובה חופשי">↔️ גרור ושנה גודל</span>
                         <span class="badge badge-fifo" id="queue-stage-hint-badge">Head = ראש (שליפה) | Tail = סוף (הכנסה)</span>
+                        <button type="button" class="btn-icon-toggle" id="btn-toggle-stage-layout" title="החלף סידור כרטיסים: עמודה / שורה זה לצד זה">▤</button>
                         <button type="button" class="btn-icon-toggle" id="btn-maximize-queue-stage" title="הגדל / שחזר חלון תצוגת התור">⛶</button>
                         <button type="button" class="btn-icon-toggle" id="btn-toggle-init-queue" title="מזער / הרחב">▾</button>
                     </div>
@@ -283,8 +292,8 @@
                                                 <br>
                                                 • <strong>סדר האתחול בקלט</strong>: הערכים מוזנים מופרדים בפסיקים (לדוגמה: <code>12, 5, 8, 20</code>). האיבר הראשון (<code>12</code>) הוא ראש השרשרת (<code>Head</code> או <code>first</code>), שמצביע על <code>5</code>, וכן הלאה עד לחוליה האחרונה (<code>20</code>) שמצביעה על <code>null</code>.
                                                 <br>
-                                                • <strong>פעולות מורשות בבגרות במחלקה <code>Node&lt;T&gt;</code></strong>:
-                                                <code>GetInfo()</code> (שליפת הערך), <code>SetInfo(x)</code> (עדכון הערך), <code>GetNext()</code> (קבלת החוליה הבאה), <code>SetNext(n)</code> (חיבור חוליה הבאה), <code>HasNext()</code> (בדיקה האם קיימת חוליה הבאה), ו-<code>ToString()</code> להדפסה.
+                                                • <strong>פעולות מורשות בבגרות במחלקה <code>Node&lt;T&gt;</code> (תקן Unit4.dll)</strong>:
+                                                <code>GetValue()</code> (שליפת הערך - ניתן גם <code>GetInfo()</code>), <code>SetValue(x)</code> (עדכון הערך - ניתן גם <code>SetInfo(x)</code>), <code>GetNext()</code> (קבלת החוליה הבאה), <code>SetNext(n)</code> (חיבור חוליה הבאה), <code>HasNext()</code> (בדיקה האם קיימת חוליה הבאה), ו-<code>ToString()</code> להדפסה.
                                                 <br>
                                                 • <strong>טיפ מציל חיים בסריקה</strong>: לעולם אין לקדם את מצביע ראש השרשרת ישירות (<code>chain = chain.GetNext()</code>), כי אז השרשרת תאבד! יש להגדיר תמיד מצביע ריצה (Runner) כגון: <code>Node&lt;int&gt; pos = chain;</code> ולנוע בעזרתו: <code>pos = pos.GetNext();</code>.
                                             </p>

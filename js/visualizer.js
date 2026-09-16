@@ -33,6 +33,12 @@ class QueueVisualizerApp {
         };
         this.activeFileName = 'Program.cs';
 
+        // מעקב אחר מצב כרטיסי תצוגה ניתנים לשינוי גודל וגרירה (Resizable ViewCards)
+        this.viewCardSizes = {}; // { [cardId]: { width, height } }
+        this.viewCardStates = {}; // { [cardId]: { isCollapsed, isMaximized } }
+        this.viewCardOrder = []; // סדר כרטיסים שמור
+        this.stageLayoutMode = 'column'; // 'column' או 'grid'
+
         this.dom = {};
     }
 
@@ -106,6 +112,7 @@ class QueueVisualizerApp {
 
         this.dom.queueStageCard = document.getElementById('queue-stage-card');
         this.dom.btnMaximizeQueueStage = document.getElementById('btn-maximize-queue-stage');
+        this.dom.btnToggleStageLayout = document.getElementById('btn-toggle-stage-layout');
         this.dom.queueStageResizer = document.getElementById('queue-stage-resizer');
         this.dom.layoutSplitter = document.getElementById('layout-splitter-horizontal');
         this.dom.queueDragHint = document.getElementById('queue-drag-hint');
@@ -1266,7 +1273,7 @@ public class Program
         
         while (pos != null)
         {
-            int val = pos.GetInfo();
+            int val = pos.GetValue(); // לפי תקן Unit4.dll (ניתן גם GetInfo)
             Console.WriteLine("חוליה " + count + ": ערך = " + val);
             sum = sum + val;
             count++;
@@ -3094,6 +3101,198 @@ public class Program
         if (hasVisibleTrees) {
             this.renderBinTrees(trees, frame);
         }
+
+        // החלת סדר הכרטיסים המותאם אישית
+        this.applyViewCardOrder();
+    }
+
+    enhanceViewCard(card, cardId, typeLabel) {
+        card.classList.add('ds-view-card');
+        card.dataset.cardId = cardId;
+        card.draggable = true;
+
+        // שחזור גודל שמור (אם שונה ע"י המשתמש)
+        if (this.viewCardSizes && this.viewCardSizes[cardId]) {
+            const saved = this.viewCardSizes[cardId];
+            if (saved.width) {
+                card.style.width = saved.width;
+                card.style.flex = `0 0 ${saved.width}`;
+            }
+            if (saved.height) {
+                card.style.height = saved.height;
+            }
+        }
+
+        // שחזור מצב מזעור / הרחבה / מקסום
+        if (this.viewCardStates && this.viewCardStates[cardId]) {
+            const state = this.viewCardStates[cardId];
+            if (state.isCollapsed) card.classList.add('is-collapsed');
+            if (state.isMaximized) card.classList.add('is-maximized');
+        }
+
+        // איתור כותרת הכרטיס והוספת כפתורי שליטה (מזעור, מקסום, איפוס)
+        const header = card.querySelector('.queue-track-header, .stack-track-header, .node-chain-header, .bintree-header');
+        if (header && !header.querySelector('.viewcard-actions')) {
+            const actions = document.createElement('div');
+            actions.className = 'viewcard-actions';
+
+            const isCollapsed = card.classList.contains('is-collapsed');
+            const isMaximized = card.classList.contains('is-maximized');
+
+            actions.innerHTML = `
+                <button type="button" class="btn-card-action btn-card-reset" title="אפס גודל ומיקום לברירת מחדל">↺</button>
+                <button type="button" class="btn-card-action btn-card-maximize" title="הגדל / שחזר כרטיס">${isMaximized ? '❐' : '⛶'}</button>
+                <button type="button" class="btn-card-action btn-card-collapse" title="מזער / הרחב כרטיס">${isCollapsed ? '▸' : '▾'}</button>
+            `;
+
+            // כפתור איפוס
+            actions.querySelector('.btn-card-reset').addEventListener('click', (e) => {
+                e.stopPropagation();
+                delete this.viewCardSizes[cardId];
+                delete this.viewCardStates[cardId];
+                card.style.width = '';
+                card.style.height = '';
+                card.style.flex = '';
+                card.classList.remove('is-collapsed', 'is-maximized');
+                const colBtn = actions.querySelector('.btn-card-collapse');
+                if (colBtn) colBtn.textContent = '▾';
+                const maxBtn = actions.querySelector('.btn-card-maximize');
+                if (maxBtn) maxBtn.textContent = '⛶';
+            });
+
+            // כפתור מקסום
+            actions.querySelector('.btn-card-maximize').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isMax = card.classList.toggle('is-maximized');
+                e.target.textContent = isMax ? '❐' : '⛶';
+                if (!this.viewCardStates) this.viewCardStates = {};
+                if (!this.viewCardStates[cardId]) this.viewCardStates[cardId] = {};
+                this.viewCardStates[cardId].isMaximized = isMax;
+            });
+
+            // כפתור מזעור
+            actions.querySelector('.btn-card-collapse').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isCol = card.classList.toggle('is-collapsed');
+                e.target.textContent = isCol ? '▸' : '▾';
+                if (!this.viewCardStates) this.viewCardStates = {};
+                if (!this.viewCardStates[cardId]) this.viewCardStates[cardId] = {};
+                this.viewCardStates[cardId].isCollapsed = isCol;
+            });
+
+            header.appendChild(actions);
+        }
+
+        // הוספת ידית גרירה ושינוי גודל פינתית ותחתית
+        if (!card.querySelector('.viewcard-resize-corner')) {
+            const corner = document.createElement('div');
+            corner.className = 'viewcard-resize-corner';
+            corner.title = 'גרור לפינה זו כדי לשנות רוחב וגובה בחופשיות';
+            corner.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10"><path d="M9 1v8H1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 5v4H5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
+
+            const bottomEdge = document.createElement('div');
+            bottomEdge.className = 'viewcard-resize-edge-bottom';
+            bottomEdge.title = 'גרור למעלה / למטה לשינוי גובה';
+
+            const sideEdge = document.createElement('div');
+            sideEdge.className = 'viewcard-resize-edge-side';
+            sideEdge.title = 'גרור ימינה / שמאלה לשינוי רוחב';
+
+            card.appendChild(corner);
+            card.appendChild(bottomEdge);
+            card.appendChild(sideEdge);
+
+            this.bindCardResizer(corner, card, cardId, 'both');
+            this.bindCardResizer(bottomEdge, card, cardId, 'bottom');
+            this.bindCardResizer(sideEdge, card, cardId, 'side');
+        }
+    }
+
+    bindCardResizer(handle, card, cardId, mode) {
+        let isResizing = false;
+        let startX = 0;
+        let startY = 0;
+        let startWidth = 0;
+        let startHeight = 0;
+        let isRtl = false;
+
+        const onPointerDown = (e) => {
+            if (e.button && e.button !== 0) return;
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = card.getBoundingClientRect();
+            startWidth = rect.width;
+            startHeight = rect.height;
+            isRtl = document.documentElement.dir === 'rtl' || getComputedStyle(document.body).direction === 'rtl';
+
+            card.classList.add('is-resizing');
+            document.body.classList.add('viewcard-resizing-active');
+            try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const onPointerMove = (e) => {
+            if (!isResizing) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const stageWidth = this.dom.queuesStage ? this.dom.queuesStage.clientWidth - 20 : 900;
+
+            if (mode === 'both' || mode === 'side') {
+                const deltaW = isRtl ? -dx : dx;
+                const newWidth = Math.max(200, Math.min(stageWidth, startWidth + deltaW));
+                card.style.width = `${newWidth}px`;
+                card.style.flex = `0 0 ${newWidth}px`;
+            }
+
+            if (mode === 'both' || mode === 'bottom') {
+                const newHeight = Math.max(80, startHeight + dy);
+                card.style.height = `${newHeight}px`;
+            }
+        };
+
+        const onPointerUp = (e) => {
+            if (!isResizing) return;
+            isResizing = false;
+            card.classList.remove('is-resizing');
+            document.body.classList.remove('viewcard-resizing-active');
+            try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+
+            if (!this.viewCardSizes) this.viewCardSizes = {};
+            this.viewCardSizes[cardId] = {
+                width: card.style.width,
+                height: card.style.height
+            };
+        };
+
+        handle.addEventListener('pointerdown', onPointerDown);
+        handle.addEventListener('pointermove', onPointerMove);
+        handle.addEventListener('pointerup', onPointerUp);
+        handle.addEventListener('pointercancel', onPointerUp);
+    }
+
+    applyViewCardOrder() {
+        if (!this.dom.queuesStage || !this.viewCardOrder || this.viewCardOrder.length === 0) return;
+        const currentCards = Array.from(this.dom.queuesStage.querySelectorAll('.ds-view-card'));
+        if (currentCards.length <= 1) return;
+
+        const cardMap = new Map();
+        currentCards.forEach(c => {
+            if (c.dataset.cardId) cardMap.set(c.dataset.cardId, c);
+        });
+
+        this.viewCardOrder.forEach(id => {
+            const card = cardMap.get(id);
+            if (card) {
+                this.dom.queuesStage.appendChild(card);
+                cardMap.delete(id);
+            }
+        });
+
+        cardMap.forEach(card => {
+            this.dom.queuesStage.appendChild(card);
+        });
     }
 
     renderQueues(queues, frame) {
@@ -3272,6 +3471,7 @@ public class Program
                 });
             }
 
+            this.enhanceViewCard(trackCard, `queue:${q.name}`, 'Queue');
             this.dom.queuesStage.appendChild(trackCard);
         });
     }
@@ -3369,6 +3569,7 @@ public class Program
                 });
             }
 
+            this.enhanceViewCard(stackCard, `stack:${s.name}`, 'Stack');
             this.dom.queuesStage.appendChild(stackCard);
         });
     }
@@ -3469,6 +3670,7 @@ public class Program
                 flowContainer.appendChild(nullWrapper);
             }
 
+            this.enhanceViewCard(chainCard, `node:${cIdx}`, 'Node');
             this.dom.queuesStage.appendChild(chainCard);
         });
     }
@@ -3704,6 +3906,7 @@ public class Program
 
             renderTreeSvg(rootNode);
 
+            this.enhanceViewCard(treeCard, `tree:${rootVar}`, 'BinNode');
             this.dom.queuesStage.appendChild(treeCard);
         });
     }
@@ -3991,6 +4194,18 @@ public class Program
                 }
             });
         }
+
+        // 4. Stage Layout Grid / Column Toggle (החלפת פריסה: עמודה מול רשת זה לצד זה)
+        const layoutToggleBtn = this.dom.btnToggleStageLayout;
+        const stage = this.dom.queuesStage;
+        if (layoutToggleBtn && stage) {
+            layoutToggleBtn.addEventListener('click', () => {
+                const isGrid = stage.classList.toggle('layout-grid-mode');
+                this.stageLayoutMode = isGrid ? 'grid' : 'column';
+                layoutToggleBtn.innerHTML = isGrid ? '☰' : '▤';
+                layoutToggleBtn.title = isGrid ? 'החלף לסידור טורי (רשימה)' : 'החלף לסידור רשת (זה לצד זה)';
+            });
+        }
     }
 
     setupQueueDragging() {
@@ -4011,7 +4226,9 @@ public class Program
 
         // 1. Click & Drag Pan on the Track & Flow
         stage.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.queue-drag-handle')) {
+            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.queue-drag-handle') ||
+                e.target.closest('.viewcard-resize-corner') || e.target.closest('.viewcard-resize-edge-bottom') ||
+                e.target.closest('.viewcard-resize-edge-side') || e.target.closest('.btn-card-action')) {
                 return;
             }
 
@@ -4097,26 +4314,39 @@ public class Program
             }
         }, true);
 
-        // 2. Drag & Drop Reordering for Queue & Stack Cards
+        // 2. Drag & Drop Reordering for All ViewCards
         let draggedCard = null;
 
         stage.addEventListener('dragstart', (e) => {
-            const card = e.target.closest('.queue-track-card, .stack-track-card');
+            const card = e.target.closest('.ds-view-card');
             if (!card) return;
+            if (e.target.closest('.btn-card-action') || e.target.closest('.viewcard-resize-corner') ||
+                e.target.closest('.viewcard-resize-edge-bottom') || e.target.closest('.viewcard-resize-edge-side')) {
+                e.preventDefault();
+                return;
+            }
             draggedCard = card;
             card.classList.add('is-dragging-card');
             e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', card.dataset.queueName || card.dataset.stackName || '');
+            e.dataTransfer.setData('text/plain', card.dataset.cardId || '');
         });
 
         stage.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            const targetCard = e.target.closest('.queue-track-card, .stack-track-card');
+            const targetCard = e.target.closest('.ds-view-card');
             if (targetCard && targetCard !== draggedCard) {
+                targetCard.classList.add('is-drag-over');
                 const rect = targetCard.getBoundingClientRect();
                 const isAfter = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
                 stage.insertBefore(draggedCard, isAfter ? targetCard.nextSibling : targetCard);
+            }
+        });
+
+        stage.addEventListener('dragleave', (e) => {
+            const targetCard = e.target.closest('.ds-view-card');
+            if (targetCard) {
+                targetCard.classList.remove('is-drag-over');
             }
         });
 
@@ -4125,6 +4355,12 @@ public class Program
                 draggedCard.classList.remove('is-dragging-card');
                 draggedCard = null;
             }
+            stage.querySelectorAll('.ds-view-card').forEach(c => c.classList.remove('is-drag-over'));
+
+            // עדכון רשימת סדר הכרטיסים השמורה
+            this.viewCardOrder = Array.from(stage.querySelectorAll('.ds-view-card'))
+                .map(c => c.dataset.cardId)
+                .filter(Boolean);
         });
     }
 }

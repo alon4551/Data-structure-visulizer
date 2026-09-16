@@ -61,7 +61,7 @@ class CSharpQueueInterpreter {
                 originalPreserved: false
             });
 
-            const entryFunc = (this.ast && this.ast.functions) ? (this.ast.functions.find(f => f.name === 'Main') || this.ast.functions[0]) : null;
+            const entryFunc = (this.ast && this.ast.functions) ? (this.ast.functions.find(f => f.name === 'Main' || f.name === 'main') || this.ast.functions[0]) : null;
             const fallbackParams = entryFunc ? entryFunc.params.map(p => ({
                 name: p.name,
                 type: p.type,
@@ -230,7 +230,7 @@ class Parser {
 
         while (this.pos < this.tokens.length) {
             const t = this.peek();
-            if (t.value === 'using' || t.value === 'namespace') {
+            if (t.value === 'using' || t.value === 'namespace' || t.value === 'import' || t.value === 'package') {
                 // דילוג עד ; או {
                 while (this.pos < this.tokens.length && this.peek().value !== ';' && this.peek().value !== '{') {
                     this.consume();
@@ -243,7 +243,7 @@ class Parser {
             // זיהוי הגדרת מחלקה (כולל מודפיקטורים מקדימים: public, private, static וכו')
             if (this.isClassStart()) {
                 let classAccess = 'public';
-                while (['public', 'private', 'protected', 'internal', 'static', 'sealed', 'abstract'].includes(this.peek().value)) {
+                while (['public', 'private', 'protected', 'internal', 'static', 'sealed', 'abstract', 'final'].includes(this.peek().value)) {
                     const mod = this.consume().value;
                     if (mod === 'public' || mod === 'private' || mod === 'protected' || mod === 'internal') {
                         classAccess = mod;
@@ -259,9 +259,9 @@ class Parser {
                     }
                 }
 
-                // הוספת פעולות סטטיות (כולל Main) לרשימת הפונקציות הכללית לקריאה ישירה
+                // הוספת פעולות סטטיות (כולל Main ו-main) לרשימת הפונקציות הכללית לקריאה ישירה
                 for (const m of cls.methods) {
-                    if (m.isStatic || m.name === 'Main') {
+                    if (m.isStatic || m.name === 'Main' || m.name === 'main') {
                         functions.push(m);
                     }
                 }
@@ -322,7 +322,7 @@ class Parser {
             let isOverride = false;
             let isVirtual = false;
 
-            while (['public', 'private', 'protected', 'internal', 'static', 'override', 'virtual'].includes(this.peek().value)) {
+            while (['public', 'private', 'protected', 'internal', 'static', 'override', 'virtual', 'final'].includes(this.peek().value)) {
                 const m = this.consume().value;
                 if (m === 'public' || m === 'private' || m === 'protected' || m === 'internal') {
                     access = m;
@@ -339,8 +339,18 @@ class Parser {
                 this.expect('(');
                 const params = [];
                 while (this.peek().value !== ')' && this.pos < this.tokens.length) {
-                    const type = this.consume().value;
+                    let type = this.consume().value;
+                    if (this.peek().value === '[' && this.peek(1).value === ']') {
+                        this.consume();
+                        this.consume();
+                        type += '[]';
+                    }
                     const paramName = this.expectIdentifier('שם פרמטר בנאי').value;
+                    if (this.peek().value === '[' && this.peek(1).value === ']') {
+                        this.consume();
+                        this.consume();
+                        type += '[]';
+                    }
                     params.push({ type, name: paramName });
                     if (this.peek().value === ',') this.consume();
                 }
@@ -362,7 +372,12 @@ class Parser {
             }
 
             // טיפול בשדה, מאפיין (Property) או מתודה
-            const memberType = this.consume().value;
+            let memberType = this.consume().value;
+            if (this.peek().value === '[' && this.peek(1).value === ']') {
+                this.consume();
+                this.consume();
+                memberType += '[]';
+            }
             const memberName = this.expectIdentifier('שם שדה, מאפיין או פעולה').value;
 
             // תמיכה מלאה במאפיין (Property) עם בלוק סוגריים מסולסלים: { get; set; }
@@ -380,15 +395,17 @@ class Parser {
                     const accessorType = this.peek().value;
                     if (accessorType === 'get') {
                         this.consume(); // 'get'
-                        if (this.match(';')) {
+                        if (this.peek().value === ';') {
+                            this.consume();
                             getter = { isAuto: true, access: acc };
-                        } else if (this.match('{')) {
-                            const body = [];
+                        } else if (this.peek().value === '{') {
+                            this.consume();
+                            const b = [];
                             while (this.peek().value !== '}' && this.pos < this.tokens.length) {
-                                body.push(this.parseStatement());
+                                b.push(this.parseStatement());
                             }
                             this.expect('}');
-                            getter = { isAuto: false, access: acc, body };
+                            getter = { isAuto: false, access: acc, body: b };
                         } else if (this.match('=>')) {
                             const expr = this.parseExpression();
                             this.expect(';');
@@ -396,15 +413,17 @@ class Parser {
                         }
                     } else if (accessorType === 'set') {
                         this.consume(); // 'set'
-                        if (this.match(';')) {
+                        if (this.peek().value === ';') {
+                            this.consume();
                             setter = { isAuto: true, access: acc };
-                        } else if (this.match('{')) {
-                            const body = [];
+                        } else if (this.peek().value === '{') {
+                            this.consume();
+                            const b = [];
                             while (this.peek().value !== '}' && this.pos < this.tokens.length) {
-                                body.push(this.parseStatement());
+                                b.push(this.parseStatement());
                             }
                             this.expect('}');
-                            setter = { isAuto: false, access: acc, body };
+                            setter = { isAuto: false, access: acc, body: b };
                         } else if (this.match('=>')) {
                             const expr = this.parseExpression();
                             this.expect(';');
@@ -454,8 +473,18 @@ class Parser {
             if (this.match('(')) {
                 const params = [];
                 while (this.peek().value !== ')' && this.pos < this.tokens.length) {
-                    const type = this.consume().value;
+                    let type = this.consume().value;
+                    if (this.peek().value === '[' && this.peek(1).value === ']') {
+                        this.consume();
+                        this.consume();
+                        type += '[]';
+                    }
                     const paramName = this.expectIdentifier('שם פרמטר').value;
+                    if (this.peek().value === '[' && this.peek(1).value === ']') {
+                        this.consume();
+                        this.consume();
+                        type += '[]';
+                    }
                     params.push({ type, name: paramName });
                     if (this.peek().value === ',') this.consume();
                 }
@@ -513,7 +542,7 @@ class Parser {
     isFunctionStart() {
         let i = 0;
         let tok = this.peek(i);
-        while (['public', 'private', 'protected', 'static', 'override', 'virtual', 'void', 'int', 'char', 'bool', 'double', 'string', 'var'].includes(tok.value) ||
+        while (['public', 'private', 'protected', 'static', 'override', 'virtual', 'final', 'void', 'int', 'char', 'bool', 'boolean', 'double', 'float', 'long', 'string', 'String', 'Integer', 'Double', 'Character', 'Boolean', 'var'].includes(tok.value) ||
                tok.value.startsWith('Queue<') || tok.value.startsWith('Queue') ||
                tok.value.startsWith('Stack<') || tok.value.startsWith('Stack') ||
                tok.value.startsWith('Node<') || tok.value.startsWith('Node') ||
@@ -521,6 +550,10 @@ class Parser {
                (this.knownClasses && this.knownClasses.has(tok.value))) {
             i++;
             tok = this.peek(i);
+            if (tok.value === '[' && this.peek(i + 1).value === ']') {
+                i += 2;
+                tok = this.peek(i);
+            }
         }
         // tok צריך להיות שם הפונקציה
         if (/^[a-zA-Z_]\w*$/.test(tok.value) && this.peek(i + 1).value === '(') {
@@ -534,13 +567,18 @@ class Parser {
         let isStatic = false;
         let returnType = 'void';
 
-        while (['public', 'private', 'protected', 'static'].includes(this.peek().value)) {
+        while (['public', 'private', 'protected', 'static', 'final', 'override', 'virtual'].includes(this.peek().value)) {
             const m = this.consume().value;
             if (m === 'static') isStatic = true;
         }
 
         // Return type
         returnType = this.consume().value;
+        if (this.peek().value === '[' && this.peek(1).value === ']') {
+            this.consume();
+            this.consume();
+            returnType += '[]';
+        }
 
         // Function name
         const nameTok = this.expectIdentifier('שם פונקציה');
@@ -549,8 +587,20 @@ class Parser {
         this.expect('(');
         const params = [];
         while (this.peek().value !== ')' && this.pos < this.tokens.length) {
-            const type = this.consume().value;
+            let type = this.consume().value;
+            // תמיכה ב-String[] args
+            if (this.peek().value === '[' && this.peek(1).value === ']') {
+                this.consume();
+                this.consume();
+                type += '[]';
+            }
             const paramName = this.expectIdentifier('שם פרמטר').value;
+            // תמיכה ב-String args[]
+            if (this.peek().value === '[' && this.peek(1).value === ']') {
+                this.consume();
+                this.consume();
+                type += '[]';
+            }
             params.push({ type, name: paramName });
             if (this.peek().value === ',') {
                 this.consume();
@@ -601,6 +651,43 @@ class Parser {
             return { type: 'WhileStatement', condition, body, line: tok.line, file };
         }
 
+        // for (init; condition; update)
+        if (tok.value === 'for') {
+            this.consume();
+            this.expect('(');
+            let init = null;
+            if (this.peek().value !== ';') {
+                const pTok = this.peek();
+                if (this.isType(pTok.value)) {
+                    let varType = this.consume().value;
+                    if (this.peek().value === '[' && this.peek(1).value === ']') {
+                        this.consume();
+                        this.consume();
+                        varType += '[]';
+                    }
+                    const varName = this.expectIdentifier('שם משתנה').value;
+                    let initVal = null;
+                    if (this.match('=')) initVal = this.parseExpression();
+                    init = { type: 'VariableDeclaration', varType, varName, init: initVal, line: pTok.line, file };
+                } else {
+                    init = { type: 'ExpressionStatement', expression: this.parseExpression(), line: pTok.line, file };
+                }
+            }
+            this.expect(';');
+            let condition = null;
+            if (this.peek().value !== ';') {
+                condition = this.parseExpression();
+            }
+            this.expect(';');
+            let update = null;
+            if (this.peek().value !== ')') {
+                update = this.parseExpression();
+            }
+            this.expect(')');
+            const body = this.parseStatement();
+            return { type: 'ForStatement', init, condition, update, body, line: tok.line, file };
+        }
+
         // if (...)
         if (tok.value === 'if') {
             this.consume();
@@ -626,10 +713,26 @@ class Parser {
             return { type: 'ReturnStatement', value, line: tok.line, file };
         }
 
-        // הצהרת משתנה: int x = 5;, Queue<int> temp = new Queue<int>();
-        if (this.isType(tok.value)) {
-            const varType = this.consume().value;
+        // הצהרת משתנה (כולל final ב-Java): int x = 5;, final boolean flag = true;
+        let isFinal = false;
+        if (tok.value === 'final') {
+            this.consume();
+            isFinal = true;
+        }
+        const curTok = this.peek();
+        if (this.isType(curTok.value)) {
+            let varType = this.consume().value;
+            if (this.peek().value === '[' && this.peek(1).value === ']') {
+                this.consume();
+                this.consume();
+                varType += '[]';
+            }
             const varName = this.expectIdentifier('שם משתנה').value;
+            if (this.peek().value === '[' && this.peek(1).value === ']') {
+                this.consume();
+                this.consume();
+                varType += '[]';
+            }
             let init = null;
             if (this.match('=')) {
                 init = this.parseExpression();
@@ -640,7 +743,8 @@ class Parser {
                 varType,
                 varName,
                 init,
-                line: tok.line,
+                isFinal,
+                line: curTok.line,
                 file
             };
         }
@@ -658,7 +762,7 @@ class Parser {
 
     isType(val) {
         if (!val) return false;
-        if (['int', 'char', 'double', 'bool', 'string', 'void', 'var'].includes(val)) return true;
+        if (['int', 'char', 'double', 'float', 'long', 'bool', 'boolean', 'string', 'String', 'Integer', 'Double', 'Character', 'Boolean', 'void', 'var'].includes(val)) return true;
         if (val.startsWith('Queue') || val.startsWith('Stack') || val.startsWith('Node') || val.startsWith('BinNode')) return true;
         if (this.knownClasses && this.knownClasses.has(val)) return true;
         const next = this.peek(1);
@@ -822,6 +926,15 @@ class Parser {
                     type: 'FunctionCallExpression',
                     callee: expr.name,
                     arguments: args,
+                    line: expr.line
+                };
+            } else if (this.match('[')) {
+                const indexExpr = this.parseExpression();
+                this.expect(']');
+                expr = {
+                    type: 'IndexExpression',
+                    object: expr,
+                    index: indexExpr,
                     line: expr.line
                 };
             } else {
@@ -1703,8 +1816,10 @@ class RuntimeEnvironment {
         let entryFunction = null;
         if (this.functions.has('Main')) {
             entryFunction = this.functions.get('Main');
+        } else if (this.functions.has('main')) {
+            entryFunction = this.functions.get('main');
         } else if (this.functions.size > 0) {
-            // אם אין Main, נבחר את הפונקציה הראשונה שהוגדרה
+            // אם אין Main/main, נבחר את הפונקציה הראשונה שהוגדרה
             entryFunction = this.ast.functions[0];
         }
 
@@ -2015,27 +2130,31 @@ class RuntimeEnvironment {
     }
 
     parsePrimitiveParamValue(rawVal, paramType, paramName) {
+        if (paramType && paramType.endsWith('[]')) {
+            if (Array.isArray(rawVal)) return rawVal;
+            return [];
+        }
         if (rawVal === undefined || rawVal === null) {
-            if (paramType === 'string') return paramName || 'text';
-            if (paramType === 'char') return 'a';
-            if (paramType === 'bool') return true;
+            if (paramType === 'string' || paramType === 'String') return paramName || 'text';
+            if (paramType === 'char' || paramType === 'Character') return 'a';
+            if (paramType === 'bool' || paramType === 'boolean' || paramType === 'Boolean') return true;
             return 0;
         }
-        if (paramType === 'string') {
+        if (paramType === 'string' || paramType === 'String') {
             let str = String(rawVal);
             if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
                 str = str.slice(1, -1);
             }
             return str;
         }
-        if (paramType === 'char') {
+        if (paramType === 'char' || paramType === 'Character') {
             let str = String(rawVal).trim();
             if ((str.startsWith("'") && str.endsWith("'")) || (str.startsWith('"') && str.endsWith('"'))) {
                 str = str.slice(1, -1);
             }
             return str.length > 0 ? str[0] : 'a';
         }
-        if (paramType === 'bool') {
+        if (paramType === 'bool' || paramType === 'boolean' || paramType === 'Boolean') {
             if (typeof rawVal === 'boolean') return rawVal;
             return String(rawVal).trim().toLowerCase() === 'true';
         }
@@ -2304,6 +2423,36 @@ class RuntimeEnvironment {
                 break;
             }
 
+            case 'ForStatement': {
+                const forScope = new Map(scope);
+                if (stmt.init) {
+                    this.executeStatement(stmt.init, forScope);
+                }
+                while (true) {
+                    this.checkStepLimit(stmt.line);
+                    let cond = true;
+                    if (stmt.condition) {
+                        cond = Boolean(this.evaluateExpression(stmt.condition, forScope));
+                        this.recordFrame(stmt.line, `בדיקת תנאי לולאת for: התוצאה היא ${cond ? 'אמת (true)' : 'שקר (false)'}`);
+                    }
+                    if (!cond) break;
+
+                    const ret = this.executeStatement(stmt.body, forScope);
+                    if (ret !== undefined) return ret;
+
+                    if (stmt.update) {
+                        this.evaluateExpression(stmt.update, forScope);
+                    }
+                }
+                // סנכרון ערכים מעודכנים בחזרה ל-scope החיצוני
+                for (const [k, v] of forScope.entries()) {
+                    if (scope.has(k)) {
+                        scope.set(k, v);
+                    }
+                }
+                break;
+            }
+
             case 'IfStatement': {
                 const cond = Boolean(this.evaluateExpression(stmt.condition, scope));
                 this.recordFrame(stmt.line, `בדיקת תנאי if: התוצאה היא ${cond ? 'אמת (true)' : 'שקר (false)'}`);
@@ -2492,6 +2641,21 @@ class RuntimeEnvironment {
                     if (propLower === 'isleaf') return obj.isLeaf();
                 }
                 return obj[expr.property];
+            }
+
+            case 'IndexExpression': {
+                const obj = this.evaluateExpression(expr.object, scope);
+                const idx = this.evaluateExpression(expr.index, scope);
+                if (obj === null || obj === undefined) {
+                    throw { line: expr.line, message: 'גישה לאינדקס של אובייקט לא מאותחל (null)' };
+                }
+                if (typeof obj === 'string') {
+                    return obj[idx] !== undefined ? obj[idx] : '';
+                }
+                if (Array.isArray(obj)) {
+                    return obj[idx];
+                }
+                return obj[idx];
             }
 
             case 'UnaryExpression': {
@@ -2765,12 +2929,61 @@ class RuntimeEnvironment {
                 }
 
                 if (expr.className.startsWith('BinNode')) {
-                    const val = expr.arguments && expr.arguments.length > 0 ? this.evaluateExpression(expr.arguments[0], scope) : 0;
-                    const left = expr.arguments && expr.arguments.length > 1 ? this.evaluateExpression(expr.arguments[1], scope) : null;
-                    const right = expr.arguments && expr.arguments.length > 2 ? this.evaluateExpression(expr.arguments[2], scope) : null;
-                    const newBin = new BinNodeInstance(val, left, right);
-                    if (this.knownBinNodes) this.knownBinNodes.add(newBin);
-                    return newBin;
+                    const argCount = expr.arguments ? expr.arguments.length : 0;
+                    if (argCount === 0) {
+                        const newBin = new BinNodeInstance(0, null, null);
+                        if (this.knownBinNodes) this.knownBinNodes.add(newBin);
+                        return newBin;
+                    } else if (argCount === 1) {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const newBin = new BinNodeInstance(val, null, null);
+                        if (this.knownBinNodes) this.knownBinNodes.add(newBin);
+                        return newBin;
+                    } else if (argCount === 2) {
+                        const a0 = this.evaluateExpression(expr.arguments[0], scope);
+                        const a1 = this.evaluateExpression(expr.arguments[1], scope);
+                        if (a0 instanceof BinNodeInstance && !(a1 instanceof BinNodeInstance)) {
+                            const newBin = new BinNodeInstance(a1, a0, null);
+                            if (this.knownBinNodes) this.knownBinNodes.add(newBin);
+                            return newBin;
+                        } else {
+                            const newBin = new BinNodeInstance(a0, a1, null);
+                            if (this.knownBinNodes) this.knownBinNodes.add(newBin);
+                            return newBin;
+                        }
+                    } else {
+                        // 3 arguments:
+                        // Unit4.dll standard: new BinNode<T>(BinNode<T> left, T x, BinNode<T> right)
+                        // Also support flexible: new BinNode<T>(T x, BinNode<T> left, BinNode<T> right)
+                        const a0 = this.evaluateExpression(expr.arguments[0], scope);
+                        const a1 = this.evaluateExpression(expr.arguments[1], scope);
+                        const a2 = this.evaluateExpression(expr.arguments[2], scope);
+                        let val, left, right;
+                        if (a0 instanceof BinNodeInstance) {
+                            // (left, val, right) - Unit4.dll standard
+                            left = a0;
+                            val = a1;
+                            right = a2;
+                        } else if (a1 instanceof BinNodeInstance) {
+                            // (val, left, right) - Alternative order
+                            val = a0;
+                            left = a1;
+                            right = a2;
+                        } else if (a0 === null && a1 !== null) {
+                            // (null, val, ...) - Unit4.dll standard
+                            left = a0;
+                            val = a1;
+                            right = a2;
+                        } else {
+                            // (val, null, ...) or default fallback
+                            val = a0;
+                            left = a1;
+                            right = a2;
+                        }
+                        const newBin = new BinNodeInstance(val, left, right);
+                        if (this.knownBinNodes) this.knownBinNodes.add(newBin);
+                        return newBin;
+                    }
                 }
 
                 if (this.classes.has(expr.className)) {
@@ -2870,7 +3083,15 @@ class RuntimeEnvironment {
                     expr.object === 'Console'
                 );
 
-                if (isConsoleCall && (expr.method === 'WriteLine' || expr.method === 'Write')) {
+                // בדיקת קריאה ל-System.out.println / System.out.print
+                const isSystemOutCall = (
+                    expr.object && expr.object.type === 'MemberExpression' &&
+                    (expr.object.property === 'out' || expr.object.property === 'err') &&
+                    ((expr.object.object && expr.object.object.name === 'System') || expr.object.object === 'System')
+                );
+
+                if ((isConsoleCall && (expr.method === 'WriteLine' || expr.method === 'Write')) ||
+                    (isSystemOutCall && (expr.method === 'println' || expr.method === 'print'))) {
                     let out = '';
                     if (expr.arguments && expr.arguments.length > 0) {
                         const evalArgs = expr.arguments.map(arg => this.evaluateExpression(arg, scope));
@@ -2885,7 +3106,8 @@ class RuntimeEnvironment {
                         }
                     }
                     this.consoleOutputs.push(out);
-                    this.recordFrame(expr.line, `פלט מסוף (Console.${expr.method}): ${out}`, 'idle');
+                    const callLabel = isSystemOutCall ? `System.out.${expr.method}` : `Console.${expr.method}`;
+                    this.recordFrame(expr.line, `פלט מסוף (${callLabel}): ${out}`, 'idle');
                     return null;
                 }
 
@@ -2961,12 +3183,30 @@ class RuntimeEnvironment {
                     }
                 }
 
-                // תמיכה ב-ToString() גנרי
-                if (expr.method === 'ToString') {
+                // תמיכה ב-ToString() / toString() גנרי
+                if (expr.method === 'ToString' || expr.method === 'toString') {
                     return this.formatVal(obj);
                 }
 
                 const mLower = (expr.method || '').toLowerCase();
+
+                // תמיכה בפעולות מחרוזת ב-Java וב-C#
+                if (typeof obj === 'string') {
+                    if (mLower === 'length') return obj.length;
+                    if (mLower === 'charat') {
+                        const charIdx = this.evaluateExpression(expr.arguments[0], scope);
+                        return obj.charAt(charIdx);
+                    }
+                    if (mLower === 'substring') {
+                        const start = this.evaluateExpression(expr.arguments[0], scope);
+                        const end = expr.arguments.length > 1 ? this.evaluateExpression(expr.arguments[1], scope) : undefined;
+                        return obj.substring(start, end);
+                    }
+                    if (mLower === 'equals') {
+                        const other = this.evaluateExpression(expr.arguments[0], scope);
+                        return obj === String(other);
+                    }
+                }
 
                 if (obj instanceof QueueInstance) {
                     if (mLower === 'insert' || mLower === 'enqueue' || mLower === 'add') {
@@ -3039,7 +3279,7 @@ class RuntimeEnvironment {
                     if (mLower === 'setinfo' || mLower === 'setvalue') {
                         const val = this.evaluateExpression(expr.arguments[0], scope);
                         obj.setInfo(val);
-                        this.recordFrame(expr.line, `פעולת SetInfo(${this.formatVal(val)}) בחוליה`);
+                        this.recordFrame(expr.line, `פעולת SetValue(${this.formatVal(val)}) בחוליה`);
                         return null;
                     }
                     if (mLower === 'getnext' || mLower === 'next') {
@@ -3053,7 +3293,7 @@ class RuntimeEnvironment {
                     }
                     if (mLower === 'hasnext') return obj.hasNext();
                     if (mLower === 'tostring') return obj.toString();
-                    throw { line: expr.line, message: `פעולה לא מוכרת '${expr.method}' בחוליה Node (לפי תקן משרד החינוך: GetInfo, SetInfo, GetNext, SetNext, HasNext)` };
+                    throw { line: expr.line, message: `פעולה לא מוכרת '${expr.method}' בחוליה Node (לפי תקן משרד החינוך / Unit4.dll: GetValue, SetValue, GetNext, SetNext, HasNext)` };
                 } else if (obj instanceof BinNodeInstance) {
                     if (mLower === 'getvalue' || mLower === 'getinfo' || mLower === 'value' || mLower === 'info') {
                         return obj.getValue();
