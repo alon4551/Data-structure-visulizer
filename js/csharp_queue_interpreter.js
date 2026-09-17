@@ -1,6 +1,6 @@
 /**
  * C# Queue Interpreter & Execution Tracer
- * אלון שרייבמן - מגמת מדעי המחשב
+ * אלון שרייבמן — מורה פרטי
  * 
  * תומך בתת-קבוצת C# של בגרות י"ב מדעי המחשב:
  * - מבנה נתונים Queue<T> (Insert, Remove, Head, IsEmpty)

@@ -1,6 +1,6 @@
 /**
  * Queue Visualizer & Debugger UI Controller
- * אלון שרייבמן - מגמת מדעי המחשב
+ * אלון שרייבמן — מורה פרטי
  */
 
 class QueueVisualizerApp {

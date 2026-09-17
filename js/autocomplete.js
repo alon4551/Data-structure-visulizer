@@ -1,6 +1,6 @@
 /**
  * Autocomplete & IntelliSense Engine with Pedagogical Documentation
- * אלון שרייבמן - מגמת מדעי המחשב
+ * אלון שרייבמן — מורה פרטי
  * תמיכה מלאה בכל מבני הנתונים של משרד החינוך: Queue<T>, Stack<T>, Node<T>, BinNode<T>
  */
 
