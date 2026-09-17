@@ -2,7 +2,7 @@
  * C# Queue Interpreter & Execution Tracer
  * אלון שרייבמן — מורה פרטי
  * 
- * תומך בתת-קבוצת C# של בגרות י"ב מדעי המחשב:
+ * תומך בתת-קבוצת C# של מדעי המחשב ומבני נתונים:
  * - מבנה נתונים Queue<T> (Insert, Remove, Head, IsEmpty)
  * - הגדרת פונקציות (public static <type> Name(params))
  * - קריאות לפונקציות, קריאות מקוננות ומחסנית קריאות (Call Stack)
