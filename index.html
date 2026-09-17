@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>סטודיו ומפרש מבני נתונים ב-C# | אלון שרייבמן</title>
-    <link rel="stylesheet" href="css/style.css?v=2.4">
+    <title>סטודיו ומפרש מבני נתונים ב-C# ו-Java | אלון שרייבמן</title>
+    <link rel="stylesheet" href="css/style.css?v=2.6">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔄</text></svg>">
     <script>
         // בקר מעבר כרטיסיות גלובלי מיידי
@@ -86,6 +86,18 @@
                     <span>OOP והורשה</span>
                 </a>
             </nav>
+
+            <!-- בורר שפה ראשי C# / Java -->
+            <div class="lang-switch-pills header-lang-pills" id="header-lang-switch-pills" title="בחר שפת תכנות (C# / Java)">
+                <button type="button" class="btn-lang-pill active" id="header-btn-lang-cs" data-lang="csharp" title="תכנות בשפת C#">
+                    <span class="lang-pill-dot dot-cs"></span>
+                    <span>C#</span>
+                </button>
+                <button type="button" class="btn-lang-pill" id="header-btn-lang-java" data-lang="java" title="תכנות בשפת Java">
+                    <span class="lang-pill-dot dot-java"></span>
+                    <span>Java</span>
+                </button>
+            </div>
 
             <!-- בורר מצבי סטודיו (Studio Mode Bar) -->
             <div class="studio-mode-bar" id="studio-mode-bar">
@@ -390,7 +402,7 @@
                     <div class="tab-pane" id="tab-pane-console">
                         <div class="console-card-pane" id="console-card">
                             <div class="console-body" id="console-output">
-                                <div class="console-empty">הפלט של Console.WriteLine יופיע כאן...</div>
+                                <div class="console-empty">הפלט של Console.WriteLine / System.out.println יופיע כאן...</div>
                             </div>
                         </div>
                     </div>
@@ -438,9 +450,20 @@
                 <div class="card-header">
                     <div class="card-title">
                         <span>💻</span>
-                        <span>עורך קוד C# ומפרש פונקציות</span>
+                        <span id="editor-title-text">עורך קוד C# ומפרש פונקציות</span>
                     </div>
                     <div class="card-header-actions">
+                        <!-- בורר שפה מהיר בעורך -->
+                        <div class="lang-switch-pills" id="lang-switch-pills" title="החלף שפת עורך (C# / Java)">
+                            <button type="button" class="btn-lang-pill active" id="btn-lang-cs" data-lang="csharp" title="תכנות בשפת C#">
+                                <span class="lang-pill-dot dot-cs"></span>
+                                <span>C#</span>
+                            </button>
+                            <button type="button" class="btn-lang-pill" id="btn-lang-java" data-lang="java" title="תכנות בשפת Java">
+                                <span class="lang-pill-dot dot-java"></span>
+                                <span>Java</span>
+                            </button>
+                        </div>
                         <select id="example-code-select" class="example-select" title="טען תבנית קוד">
                             <option value="">⚡ דוגמאות קוד לבחירה...</option>
                             <option value="basic">🔹 בסיסי: Queue&lt;int&gt; (מציאת מקסימום)</option>
@@ -455,7 +478,7 @@
                             <option value="node-basic">🔗 שרשרת חוליות Node: סריקה וחישוב</option>
                             <option value="binnode-basic">🌳 עץ בינארי BinNode: סריקה תוכית (In-order)</option>
                         </select>
-                        <span class="badge">C# בגרות</span>
+                        <span class="badge" id="badge-lang-tag">C# בגרות</span>
                         <span class="badge" title="לחץ Ctrl+Space להשלמה אוטומטית בכל עת">Ctrl+Space להשלמה</span>
                     </div>
                 </div>
@@ -507,9 +530,10 @@
     </footer>
 
     <!-- סקריפטים -->
-    <script src="js/csharp_queue_interpreter.js?v=2.4"></script>
-    <script src="js/autocomplete.js?v=2.4"></script>
-    <script src="js/visualizer.js?v=2.4"></script>
+    <script src="js/csharp_queue_interpreter.js?v=2.6"></script>
+    <script src="js/presets.js?v=2.6"></script>
+    <script src="js/autocomplete.js?v=2.6"></script>
+    <script src="js/visualizer.js?v=2.6"></script>
 
 </body>
 </html>

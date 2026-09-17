@@ -140,6 +140,11 @@ class CSharpQueueInterpreter {
                     line = line.substring(0, singleCommentIdx);
                 }
 
+                // ניקוי הצהרות package, import, using תוך שימור מספרי שורות מקוריים
+                if (/^\s*(?:package|import|using)\s+[^;]+;/.test(line)) {
+                    line = '';
+                }
+
                 // טוקניזציה לשורה הנוכחית
                 const lineTokens = this.tokenizeLine(line, originalLineNum, fileName);
                 tokens.push(...lineTokens);
@@ -151,7 +156,7 @@ class CSharpQueueInterpreter {
 
     tokenizeLine(line, lineNum, fileName = 'Program.cs') {
         const tokens = [];
-        const regex = /\s*(==|!=|<=|>=|&&|\|\||\+\+|--|\+=|-=|\*=|\/=|=>|[(){}\[\],;+\-*\/%<>=!.]|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])'|[a-zA-Z_]\w*(?:<[a-zA-Z0-9_,\s]*(?:<[a-zA-Z0-9_,\s]*(?:<[a-zA-Z0-9_,\s]*>)?>)?>)?|-?\d+(?:\.\d+)?)\s*/g;
+        const regex = /\s*(==|!=|<=|>=|&&|\|\||\+\+|--|\+=|-=|\*=|\/=|=>|[(){}\[\],;+\-*\/%<>=!.:?]|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])'|[a-zA-Z_]\w*(?:<[a-zA-Z0-9_,\s]*(?:<[a-zA-Z0-9_,\s]*(?:<[a-zA-Z0-9_,\s]*>)?>)?>)?|-?\d+(?:\.\d+)?)\s*/g;
         let match;
         while ((match = regex.exec(line)) !== null) {
             const val = match[1];
@@ -293,6 +298,17 @@ class Parser {
         const classTok = this.consume(); // 'class'
         const nameTok = this.expectIdentifier('שם מחלקה');
         const className = nameTok.value;
+        let baseClass = null;
+        if (this.pos < this.tokens.length && (this.peek().value === ':' || this.peek().value === 'extends')) {
+            this.consume();
+            baseClass = this.expectIdentifier('שם מחלקת בסיס').value;
+        }
+        if (this.pos < this.tokens.length && this.peek().value === 'implements') {
+            this.consume();
+            while (this.pos < this.tokens.length && this.peek().value !== '{') {
+                this.consume();
+            }
+        }
         this.expect('{');
         const fields = [];
         const properties = [];
@@ -790,7 +806,7 @@ class Parser {
     }
 
     parseAssignment() {
-        const expr = this.parseLogicalOr();
+        const expr = this.parseConditional();
 
         if (['=', '+=', '-=', '*=', '/='].includes(this.peek().value)) {
             const op = this.consume().value;
@@ -814,6 +830,18 @@ class Parser {
             };
         }
 
+        return expr;
+    }
+
+    parseConditional() {
+        const expr = this.parseLogicalOr();
+        if (this.peek().value === '?') {
+            this.consume();
+            const consequent = this.parseExpression();
+            this.expect(':');
+            const alternate = this.parseConditional();
+            return { type: 'ConditionalExpression', test: expr, consequent, alternate, line: expr.line };
+        }
         return expr;
     }
 
@@ -956,16 +984,55 @@ class Parser {
             return expr;
         }
 
+        // מערך בפורמט ליטרל { 1, 2, 3 }
+        if (tok.value === '{') {
+            this.consume();
+            const elements = [];
+            while (this.pos < this.tokens.length && this.peek().value !== '}') {
+                elements.push(this.parseExpression());
+                if (this.peek().value === ',') this.consume();
+            }
+            this.expect('}');
+            return { type: 'ArrayLiteral', elements, line: tok.line };
+        }
+
         // this keyword
         if (tok.value === 'this') {
             this.consume();
             return { type: 'ThisExpression', line: tok.line };
         }
 
-        // new Queue<int>() / new Point(10, 20) / new Queue<Queue<int>>()
+        // new Queue<int>() / new Point(10, 20) / new int[5] / new int[] { 1, 2 }
         if (tok.value === 'new') {
             this.consume();
             const typeTok = this.consume();
+
+            // יצירת מערך: new int[5] או new int[] { 1, 2 }
+            if (this.match('[')) {
+                let sizeExpr = null;
+                if (this.peek().value !== ']') {
+                    sizeExpr = this.parseExpression();
+                }
+                this.expect(']');
+                let elements = null;
+                if (this.peek().value === '{') {
+                    this.consume();
+                    elements = [];
+                    while (this.pos < this.tokens.length && this.peek().value !== '}') {
+                        elements.push(this.parseExpression());
+                        if (this.peek().value === ',') this.consume();
+                    }
+                    this.expect('}');
+                }
+                return {
+                    type: 'NewArrayExpression',
+                    elementType: typeTok.value,
+                    size: sizeExpr,
+                    elements: elements,
+                    line: tok.line
+                };
+            }
+
             this.expect('(');
             const args = [];
             while (this.peek().value !== ')' && this.pos < this.tokens.length) {
@@ -2057,7 +2124,7 @@ class RuntimeEnvironment {
                     }
                 });
             }
-        } else if (this.classes.has(qType) || (!['int', 'char', 'string', 'bool', 'double', 'float', 'long'].includes(qType) && !qType.startsWith('Queue'))) {
+        } else if (this.classes.has(qType) || (!['int', 'Integer', 'char', 'Character', 'string', 'String', 'bool', 'boolean', 'Boolean', 'double', 'Double', 'float', 'Float', 'long', 'Long'].includes(qType) && !qType.startsWith('Queue'))) {
             const classDecl = this.classes.get(qType);
             const fieldMeta = new Map();
             const propMeta = new Map();
@@ -2199,7 +2266,7 @@ class RuntimeEnvironment {
                     }
                 });
             }
-        } else if (this.classes.has(stType) || (!['int', 'char', 'string', 'bool', 'double', 'float', 'long'].includes(stType) && !stType.startsWith('Stack') && !stType.startsWith('Queue'))) {
+        } else if (this.classes.has(stType) || (!['int', 'Integer', 'char', 'Character', 'string', 'String', 'bool', 'boolean', 'Boolean', 'double', 'Double', 'float', 'Float', 'long', 'Long'].includes(stType) && !stType.startsWith('Stack') && !stType.startsWith('Queue'))) {
             const classDecl = this.classes.get(stType);
             const fieldMeta = new Map();
             const propMeta = new Map();
@@ -2553,6 +2620,11 @@ class RuntimeEnvironment {
         if (!expr) return null;
 
         switch (expr.type) {
+            case 'ConditionalExpression': {
+                const testVal = Boolean(this.evaluateExpression(expr.test, scope));
+                return testVal ? this.evaluateExpression(expr.consequent, scope) : this.evaluateExpression(expr.alternate, scope);
+            }
+
             case 'Literal':
                 return expr.value;
 
@@ -2588,8 +2660,18 @@ class RuntimeEnvironment {
             }
 
             case 'MemberExpression': {
+                const rawObjName = (expr.object && expr.object.type === 'Identifier') ? expr.object.name : (typeof expr.object === 'string' ? expr.object : null);
+                if (rawObjName === 'Integer' || rawObjName === 'int') {
+                    if (expr.property === 'MAX_VALUE' || expr.property === 'MaxValue') return 2147483647;
+                    if (expr.property === 'MIN_VALUE' || expr.property === 'MinValue') return -2147483648;
+                }
+                if (rawObjName === 'Math') {
+                    if (expr.property === 'PI') return Math.PI;
+                    if (expr.property === 'E') return Math.E;
+                }
+
                 const obj = this.evaluateExpression(expr.object, scope);
-                if (!obj) {
+                if (obj === null || obj === undefined) {
                     throw { line: expr.line, message: `גישה לשדה '${expr.property}' של אובייקט לא מאותחל (null)` };
                 }
                 if (obj instanceof ClassInstance) {
@@ -2617,6 +2699,9 @@ class RuntimeEnvironment {
                     return obj.fields[expr.property] !== undefined ? obj.fields[expr.property] : 0;
                 }
                 const propLower = (expr.property || '').toLowerCase();
+                if (Array.isArray(obj) || typeof obj === 'string') {
+                    if (propLower === 'length') return obj.length;
+                }
                 if (obj instanceof QueueInstance) {
                     if (propLower === 'count' || propLower === 'length') return obj.items.length;
                     if (propLower === 'isempty') return obj.isEmpty();
@@ -2696,6 +2781,7 @@ class RuntimeEnvironment {
                 let targetName = null;
                 let targetObj = null;
                 let targetProp = null;
+                let targetIndex = null;
 
                 if (expr.left.type === 'Identifier') {
                     targetName = expr.left.name;
@@ -2705,8 +2791,14 @@ class RuntimeEnvironment {
                     if (!targetObj) {
                         throw { line: expr.line, message: `גישה לשדה '${targetProp}' של אובייקט לא מאותחל (null)` };
                     }
+                } else if (expr.left.type === 'IndexExpression') {
+                    targetObj = this.evaluateExpression(expr.left.object, scope);
+                    targetIndex = this.evaluateExpression(expr.left.index, scope);
+                    if (!targetObj) {
+                        throw { line: expr.line, message: `גישה לאינדקס של מערך לא מאותחל (null)` };
+                    }
                 } else {
-                    throw { line: expr.line, message: 'השמה מותרת רק למשתנה או לשדה של אובייקט' };
+                    throw { line: expr.line, message: 'השמה מותרת רק למשתנה, לשדה של אובייקט או לאינדקס מערך' };
                 }
 
                 const rightVal = this.evaluateExpression(expr.right, scope);
@@ -2857,6 +2949,17 @@ class RuntimeEnvironment {
                         this.recordFrame(expr.line, `השמה לשדה: ${targetProp} = ${this.formatVal(finalVal)}`);
                         return finalVal;
                     }
+                } else if (targetObj && targetIndex !== null && targetIndex !== undefined) {
+                    let currentVal = targetObj[targetIndex] !== undefined ? targetObj[targetIndex] : 0;
+                    let finalVal = rightVal;
+                    if (expr.operator === '+=') finalVal = currentVal + rightVal;
+                    else if (expr.operator === '-=') finalVal = currentVal - rightVal;
+                    else if (expr.operator === '*=') finalVal = currentVal * rightVal;
+                    else if (expr.operator === '/=') finalVal = rightVal !== 0 ? Math.trunc(currentVal / rightVal) : 0;
+
+                    targetObj[targetIndex] = finalVal;
+                    this.recordFrame(expr.line, `השמה לאינדקס מערך: [${targetIndex}] = ${this.formatVal(finalVal)}`);
+                    return finalVal;
                 }
                 break;
             }
@@ -2870,6 +2973,17 @@ class RuntimeEnvironment {
                     scope.set(varName, currentVal);
                     this.recordFrame(expr.line, `קידום משתנה: ${varName} הפך ל-${currentVal}`);
                     return currentVal;
+                } else if (expr.argument.type === 'IndexExpression') {
+                    const targetObj = this.evaluateExpression(expr.argument.object, scope);
+                    const targetIndex = this.evaluateExpression(expr.argument.index, scope);
+                    if (!targetObj) {
+                        throw { line: expr.line, message: `גישה לאינדקס של מערך לא מאותחל (null)` };
+                    }
+                    let currentVal = targetObj[targetIndex] !== undefined ? targetObj[targetIndex] : 0;
+                    const updatedVal = expr.operator === '++' ? currentVal + 1 : currentVal - 1;
+                    targetObj[targetIndex] = updatedVal;
+                    this.recordFrame(expr.line, `קידום איבר במערך: [${targetIndex}] הפך ל-${updatedVal}`);
+                    return updatedVal;
                 } else if (expr.argument.type === 'MemberExpression') {
                     const targetObj = this.evaluateExpression(expr.argument.object, scope);
                     const prop = expr.argument.property;
@@ -2901,7 +3015,34 @@ class RuntimeEnvironment {
                 break;
             }
 
+            case 'ArrayLiteral': {
+                return (expr.elements || []).map(el => this.evaluateExpression(el, scope));
+            }
+
+            case 'NewArrayExpression': {
+                if (expr.elements) {
+                    return expr.elements.map(el => this.evaluateExpression(el, scope));
+                }
+                const size = expr.size ? this.evaluateExpression(expr.size, scope) : 0;
+                const safeSize = Math.max(0, Math.min(1000, Number(size) || 0));
+                const elemType = (expr.elementType || '').toLowerCase();
+                const initVal = (elemType === 'string') ? '' : (elemType === 'bool' || elemType === 'boolean') ? false : 0;
+                return new Array(safeSize).fill(initVal);
+            }
+
             case 'NewExpression': {
+                if (expr.className === 'Scanner') {
+                    return {
+                        __isScanner: true,
+                        nextInt: () => 0,
+                        nextLine: () => '',
+                        next: () => '',
+                        hasNext: () => true,
+                        hasNextInt: () => true,
+                        close: () => {}
+                    };
+                }
+
                 if (expr.className.startsWith('Queue')) {
                     let innerType = 'int';
                     const qMatch = expr.className.match(/^Queue<(.+)>$/);
@@ -3111,13 +3252,76 @@ class RuntimeEnvironment {
                     return null;
                 }
 
+                // פעולות Math סטטיות
+                const rawObjName = (expr.object && expr.object.type === 'Identifier') ? expr.object.name : (typeof expr.object === 'string' ? expr.object : null);
+                if (rawObjName === 'Math') {
+                    const fn = (expr.method || '').toLowerCase();
+                    const args = (expr.arguments || []).map(a => this.evaluateExpression(a, scope));
+                    if (fn === 'max') return Math.max(args[0], args[1]);
+                    if (fn === 'min') return Math.min(args[0], args[1]);
+                    if (fn === 'abs') return Math.abs(args[0]);
+                    if (fn === 'pow') return Math.pow(args[0], args[1]);
+                    if (fn === 'sqrt') return Math.sqrt(args[0]);
+                    if (fn === 'floor') return Math.floor(args[0]);
+                    if (fn === 'ceiling' || fn === 'ceil') return Math.ceil(args[0]);
+                    if (fn === 'round') return Math.round(args[0]);
+                }
+
+                // פעולות המרה של שלמים ודאבל
+                if (rawObjName === 'Integer' || rawObjName === 'int') {
+                    const fn = (expr.method || '').toLowerCase();
+                    if (fn === 'parseint' || fn === 'parse') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const res = parseInt(val, 10);
+                        return isNaN(res) ? 0 : res;
+                    }
+                }
+                if (rawObjName === 'Double' || rawObjName === 'double') {
+                    const fn = (expr.method || '').toLowerCase();
+                    if (fn === 'parsedouble' || fn === 'parse') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const res = parseFloat(val);
+                        return isNaN(res) ? 0.0 : res;
+                    }
+                }
+                if (rawObjName === 'Convert') {
+                    const fn = (expr.method || '').toLowerCase();
+                    if (fn === 'toint32') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const res = parseInt(val, 10);
+                        return isNaN(res) ? 0 : res;
+                    }
+                    if (fn === 'todouble') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const res = parseFloat(val);
+                        return isNaN(res) ? 0.0 : res;
+                    }
+                }
+
                 const obj = this.evaluateExpression(expr.object, scope);
+
+                // תמיכה ב-Scanner
+                if (obj && obj.__isScanner) {
+                    const m = (expr.method || '').toLowerCase();
+                    if (m === 'nextint') return 0;
+                    if (m === 'nextline' || m === 'next') return '';
+                    if (m === 'hasnext' || m === 'hasnextint') return true;
+                    if (m === 'close') return null;
+                }
 
                 // תמיכה במתודות של ClassInstance
                 if (obj instanceof ClassInstance) {
-                    if (expr.method === 'ToString') {
-                        if (obj.methods.has('ToString')) {
-                            const methodDecl = obj.methods.get('ToString');
+                    if (expr.method === 'ToString' || expr.method === 'toString') {
+                        let methodDecl = obj.methods.get('ToString') || obj.methods.get('toString');
+                        if (!methodDecl) {
+                            for (const [mName, mDef] of obj.methods) {
+                                if (mName.toLowerCase() === 'tostring') {
+                                    methodDecl = mDef;
+                                    break;
+                                }
+                            }
+                        }
+                        if (methodDecl) {
                             const prevFile = this.currentFile;
                             if (methodDecl.file) this.currentFile = methodDecl.file;
                             this.checkAccess(obj, methodDecl.access || 'public', scope, `הפעולה '${obj.className}.ToString()'`, expr.line);
@@ -3147,8 +3351,17 @@ class RuntimeEnvironment {
                         return obj.toString();
                     }
 
-                    if (obj.methods.has(expr.method)) {
-                        const methodDecl = obj.methods.get(expr.method);
+                    let methodDecl = obj.methods.get(expr.method);
+                    if (!methodDecl) {
+                        for (const [mName, mDef] of obj.methods) {
+                            if (mName.toLowerCase() === (expr.method || '').toLowerCase()) {
+                                methodDecl = mDef;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (methodDecl) {
                         const prevFile = this.currentFile;
                         if (methodDecl.file) this.currentFile = methodDecl.file;
                         this.checkAccess(obj, methodDecl.access || 'public', scope, `הפעולה '${obj.className}.${expr.method}()'`, expr.line);

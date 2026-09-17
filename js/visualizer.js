@@ -16,10 +16,15 @@ class QueueVisualizerApp {
         this.initialParams = { q: [14, 7, 25, 9, 31] };
         this.studioMode = 'all'; // 'all', 'queue', 'stack', 'node', 'binnode'
 
+        this.currentLang = 'csharp'; // 'csharp' | 'java'
+        this.currentLanguage = 'csharp';
+        this.currentPresetId = '';
+
         // ניהול קבצי מחלקות בלשוניות (Class & File Tabs)
+        const mainFile = this.getMainFileName();
         this.editorFiles = {
-            'Program.cs': {
-                name: 'Program.cs',
+            [mainFile]: {
+                name: mainFile,
                 isMain: true,
                 canDelete: false,
                 code: `public class Program
@@ -31,7 +36,7 @@ class QueueVisualizerApp {
 }`
             }
         };
-        this.activeFileName = 'Program.cs';
+        this.activeFileName = mainFile;
 
         // מעקב אחר מצב כרטיסי תצוגה ניתנים לשינוי גודל וגרירה (Resizable ViewCards)
         this.viewCardSizes = {}; // { [cardId]: { width, height } }
@@ -42,9 +47,14 @@ class QueueVisualizerApp {
         this.dom = {};
     }
 
+    getMainFileName() {
+        return this.currentLang === 'java' ? 'Main.java' : 'Program.cs';
+    }
+
     init() {
         this.cacheDom();
         this.setupStudioMode();
+        this.updatePresetsDropdown();
         this.bindEvents();
         this.setupEditorTabs();
         this.renderEditorTabs();
@@ -53,7 +63,9 @@ class QueueVisualizerApp {
         if (this.dom.initialQueueInput) {
             this.dom.initialQueueInput.value = this.initialQueue.join(', ');
         }
-        this.dom.codeTextarea.value = this.editorFiles[this.activeFileName].code;
+        if (this.editorFiles[this.activeFileName]) {
+            this.dom.codeTextarea.value = this.editorFiles[this.activeFileName].code;
+        }
         this.updateLineNumbers();
         this.recompile();
     }
@@ -149,7 +161,8 @@ class QueueVisualizerApp {
                     this.updateLineNumbers();
                     this.recompile();
                 },
-                () => this.studioMode
+                () => this.studioMode,
+                () => this.currentLang
             );
         }
     }
@@ -160,7 +173,7 @@ class QueueVisualizerApp {
             'all': this.getDefaultModeState('all'),
             'queue': {
                 editorFiles: JSON.parse(JSON.stringify(this.editorFiles)),
-                activeFileName: 'Program.cs',
+                activeFileName: this.getMainFileName(),
                 initialParams: JSON.parse(JSON.stringify(this.initialParams)),
                 initialQueue: [...this.initialQueue],
                 initialQueueType: this.initialQueueType || 'int'
@@ -211,16 +224,19 @@ class QueueVisualizerApp {
         // 2. קבלת המצב הנשמר או יצירת תבנית ברירת מחדל עבור המצב הנכנס
         let nextState = this.modeEditorState ? this.modeEditorState[targetMode] : null;
         if (!nextState) {
-            nextState = this.getDefaultModeState(targetMode);
+            nextState = this.getDefaultModeState(targetMode, this.currentLang);
             this.modeEditorState[targetMode] = nextState;
         }
 
         // 3. החלת המצב על העורך ועל המשתנים
         this.editorFiles = JSON.parse(JSON.stringify(nextState.editorFiles));
-        this.activeFileName = nextState.activeFileName || 'Program.cs';
+        this.activeFileName = nextState.activeFileName || this.getMainFileName();
+        if (!this.editorFiles[this.activeFileName]) {
+            this.activeFileName = Object.keys(this.editorFiles)[0] || this.getMainFileName();
+        }
         this.initialParams = JSON.parse(JSON.stringify(nextState.initialParams));
         this.initialQueue = Array.isArray(nextState.initialQueue) ? [...nextState.initialQueue] : nextState.initialQueue;
-        this.initialQueueType = nextState.initialQueueType || 'int';
+        this.initialQueueType = nextState.initialQueueType || (this.currentLang === 'java' ? 'Integer' : 'int');
 
         // 4. עדכון תוכן עורך הקוד, הלשוניות ומספרי השורות
         if (this.editorFiles[this.activeFileName] && this.dom.codeTextarea) {
@@ -250,9 +266,9 @@ class QueueVisualizerApp {
         }
 
         // אם המצב היוצא הוא 'all' והקוד בו עדיין מכיל רק תור בודד ללא עריכה, נשמור את ברירת המחדל המשולבת
-        if (mode === 'all' && this.dom.codeTextarea && this.dom.codeTextarea.value.includes('Main(Queue<int> q)') && !this.dom.codeTextarea.value.includes('Stack<int>')) {
+        if (mode === 'all' && this.dom.codeTextarea && (this.dom.codeTextarea.value.includes('Main(Queue<int> q)') || this.dom.codeTextarea.value.includes('main(Queue<Integer> q)')) && !this.dom.codeTextarea.value.includes('Stack')) {
             if (!this.modeEditorState['all']) {
-                this.modeEditorState['all'] = this.getDefaultModeState('all');
+                this.modeEditorState['all'] = this.getDefaultModeState('all', this.currentLang);
             }
             return;
         }
@@ -262,13 +278,23 @@ class QueueVisualizerApp {
             activeFileName: this.activeFileName,
             initialParams: JSON.parse(JSON.stringify(this.initialParams)),
             initialQueue: Array.isArray(this.initialQueue) ? [...this.initialQueue] : this.initialQueue,
-            initialQueueType: this.initialQueueType || 'int'
+            initialQueueType: this.initialQueueType || (this.currentLang === 'java' ? 'Integer' : 'int')
         };
     }
 
-    getDefaultModeState(mode) {
+    getDefaultModeState(mode, lang = this.currentLang) {
+        const isJava = (lang === 'java');
+        const mainFile = isJava ? 'Main.java' : 'Program.cs';
+
         if (mode === 'stack') {
-            const code = `// תוכנית ראשית עבור מחסנית Stack<int>
+            const code = isJava ? `// תוכנית ראשית עבור מחסנית Stack<Integer>
+import java.util.*;
+
+public class Main {
+    public static void main(Stack<Integer> s) {
+        
+    }
+}` : `// תוכנית ראשית עבור מחסנית Stack<int>
 public class Program
 {
     public static void Main(Stack<int> s)
@@ -278,15 +304,22 @@ public class Program
 }`;
             return {
                 editorFiles: {
-                    'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
+                    [mainFile]: { name: mainFile, isMain: true, canDelete: false, code }
                 },
-                activeFileName: 'Program.cs',
+                activeFileName: mainFile,
                 initialParams: { s: [10, 20, 30, 40, 50] },
                 initialQueue: [10, 20, 30, 40, 50],
-                initialQueueType: 'int'
+                initialQueueType: isJava ? 'Integer' : 'int'
             };
         } else if (mode === 'queue') {
-            const code = `// תוכנית ראשית עבור תור Queue<int>
+            const code = isJava ? `// תוכנית ראשית עבור תור Queue<Integer>
+import java.util.*;
+
+public class Main {
+    public static void main(Queue<Integer> q) {
+        
+    }
+}` : `// תוכנית ראשית עבור תור Queue<int>
 public class Program
 {
     public static void Main(Queue<int> q)
@@ -296,15 +329,22 @@ public class Program
 }`;
             return {
                 editorFiles: {
-                    'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
+                    [mainFile]: { name: mainFile, isMain: true, canDelete: false, code }
                 },
-                activeFileName: 'Program.cs',
+                activeFileName: mainFile,
                 initialParams: { q: [14, 7, 25, 9, 31] },
                 initialQueue: [14, 7, 25, 9, 31],
-                initialQueueType: 'int'
+                initialQueueType: isJava ? 'Integer' : 'int'
             };
         } else if (mode === 'node') {
-            const code = `// תוכנית ראשית עבור שרשרת חוליות Node<int>
+            const code = isJava ? `// תוכנית ראשית עבור שרשרת חוליות Node<Integer>
+import java.util.*;
+
+public class Main {
+    public static void main(Node<Integer> chain) {
+        
+    }
+}` : `// תוכנית ראשית עבור שרשרת חוליות Node<int>
 public class Program
 {
     public static void Main(Node<int> chain)
@@ -314,15 +354,22 @@ public class Program
 }`;
             return {
                 editorFiles: {
-                    'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
+                    [mainFile]: { name: mainFile, isMain: true, canDelete: false, code }
                 },
-                activeFileName: 'Program.cs',
+                activeFileName: mainFile,
                 initialParams: { chain: [12, 5, 8, 20] },
                 initialQueue: [12, 5, 8, 20],
-                initialQueueType: 'int'
+                initialQueueType: isJava ? 'Integer' : 'int'
             };
         } else if (mode === 'binnode') {
-            const code = `// תוכנית ראשית עבור עץ בינארי BinNode<int>
+            const code = isJava ? `// תוכנית ראשית עבור עץ בינארי BinNode<Integer>
+import java.util.*;
+
+public class Main {
+    public static void main(BinNode<Integer> root) {
+        
+    }
+}` : `// תוכנית ראשית עבור עץ בינארי BinNode<int>
 public class Program
 {
     public static void Main(BinNode<int> root)
@@ -332,16 +379,23 @@ public class Program
 }`;
             return {
                 editorFiles: {
-                    'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
+                    [mainFile]: { name: mainFile, isMain: true, canDelete: false, code }
                 },
-                activeFileName: 'Program.cs',
+                activeFileName: mainFile,
                 initialParams: { root: 'root: 50, L: 20, R: 70, LR: 30' },
                 initialQueue: [50, 20, 70, 30],
-                initialQueueType: 'int'
+                initialQueueType: isJava ? 'Integer' : 'int'
             };
         } else {
             // mode === 'all'
-            const code = `// סטודיו מבני נתונים - מצב משולב (תור ומחסנית)
+            const code = isJava ? `// סטודיו מבני נתונים - מצב משולב (תור ומחסנית) ב-Java
+import java.util.*;
+
+public class Main {
+    public static void main(Queue<Integer> q, Stack<Integer> s) {
+        
+    }
+}` : `// סטודיו מבני נתונים - מצב משולב (תור ומחסנית)
 public class Program
 {
     public static void Main(Queue<int> q, Stack<int> s)
@@ -351,12 +405,12 @@ public class Program
 }`;
             return {
                 editorFiles: {
-                    'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
+                    [mainFile]: { name: mainFile, isMain: true, canDelete: false, code }
                 },
-                activeFileName: 'Program.cs',
+                activeFileName: mainFile,
                 initialParams: { q: [14, 7, 25, 9, 31], s: [10, 20, 30, 40, 50] },
                 initialQueue: [14, 7, 25, 9, 31],
-                initialQueueType: 'int'
+                initialQueueType: isJava ? 'Integer' : 'int'
             };
         }
     }
@@ -842,505 +896,163 @@ public class Program
         setupMinimizeToggle(this.dom.btnToggleStatus, this.dom.statusBanner);
         setupMinimizeToggle(this.dom.btnToggleTabs, this.dom.inspectionCard);
 
+        // בורר שפה מהיר (C# / Java) - האזנה מואצלת לאירועי לחיצה על כפתורי הפיל
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest ? e.target.closest('.btn-lang-pill, .lang-btn') : null;
+            if (btn) {
+                const targetLang = btn.dataset.lang || (btn.id && btn.id.includes('java') ? 'java' : 'csharp');
+                this.setLanguage(targetLang);
+            }
+        });
+
+        const langCsBtns = document.querySelectorAll('#btn-lang-cs, #header-btn-lang-cs');
+        const langJavaBtns = document.querySelectorAll('#btn-lang-java, #header-btn-lang-java');
+        langCsBtns.forEach(btn => {
+            btn.onclick = (e) => { e.preventDefault(); this.setLanguage('csharp'); };
+        });
+        langJavaBtns.forEach(btn => {
+            btn.onclick = (e) => { e.preventDefault(); this.setLanguage('java'); };
+        });
+
         // טעינת דוגמאות קוד מוכנות (Presets)
         if (this.dom.exampleCodeSelect) {
             this.dom.exampleCodeSelect.addEventListener('change', (e) => {
                 const choice = e.target.value;
                 if (!choice) return;
-
-                if (choice === 'basic') {
-                    const code = `// מציאת ערך מקסימלי בתור של מספרים
-public class Program
-{
-    public static int FindMax(Queue<int> q)
-    {
-        Queue<int> temp = new Queue<int>();
-        int maxVal = q.Head();
-
-        while (!q.IsEmpty())
-        {
-            int x = q.Remove();
-            Console.WriteLine("בודק איבר: " + x);
-            if (x > maxVal)
-            {
-                maxVal = x;
-            }
-            temp.Insert(x);
-        }
-
-        // שחזור התור המקורי (שמירה על כלל הברזל בבגרות)
-        while (!temp.IsEmpty())
-        {
-            q.Insert(temp.Remove());
-        }
-
-        Console.WriteLine("המקסימום שנמצא: " + maxVal);
-        return maxVal;
-    }
-
-    public static void Main(Queue<int> q)
-    {
-        int max = FindMax(q);
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialQueueType = 'int';
-                    this.initialQueue = [14, 7, 25, 9, 31];
-                    this.initialParams = { q: [14, 7, 25, 9, 31] };
-                    this.renderEditorTabs();
-                } else if (choice === 'chars') {
-                    const code = `// ספירת מופעים של תו מסוים בתור של תווים
-public class Program
-{
-    public static int CountChar(Queue<char> q, char target)
-    {
-        Queue<char> temp = new Queue<char>();
-        int count = 0;
-
-        while (!q.IsEmpty())
-        {
-            char c = q.Remove();
-            if (c == target)
-            {
-                count++;
-            }
-            temp.Insert(c);
-        }
-
-        // שחזור התור המקורי
-        while (!temp.IsEmpty())
-        {
-            q.Insert(temp.Remove());
-        }
-
-        Console.WriteLine("התו '" + target + "' נמצא " + count + " פעמים");
-        return count;
-    }
-
-    public static void Main(Queue<char> q)
-    {
-        CountChar(q, 'a');
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialQueueType = 'char';
-                    this.initialQueue = ['a', 'b', 'a', 'c', 'a', 'd'];
-                    this.initialParams = { q: ['a', 'b', 'a', 'c', 'a', 'd'] };
-                    this.renderEditorTabs();
-                } else if (choice === 'strings') {
-                    const code = `// שרשור שמות מתור של מחרוזות
-public class Program
-{
-    public static string JoinNames(Queue<string> q)
-    {
-        Queue<string> temp = new Queue<string>();
-        string result = "";
-
-        while (!q.IsEmpty())
-        {
-            string name = q.Remove();
-            Console.WriteLine("שולף שם: " + name);
-            result = result + name + " ";
-            temp.Insert(name);
-        }
-
-        while (!temp.IsEmpty())
-        {
-            q.Insert(temp.Remove());
-        }
-
-        Console.WriteLine("תוצאת השרשור: " + result);
-        return result;
-    }
-
-    public static void Main(Queue<string> q)
-    {
-        JoinNames(q);
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialQueueType = 'string';
-                    this.initialQueue = ['Dana', 'Alon', 'Maya', 'Noam'];
-                    this.initialParams = { q: ['Dana', 'Alon', 'Maya', 'Noam'] };
-                    this.renderEditorTabs();
-                } else if (choice === 'class-point') {
-                    const pointCode = `// מחלקה מותאמת אישית Point (בלשונית ייעודית נפרדת)
-public class Point
-{
-    private int x;
-    private int y;
-
-    public Point(int x, int y)
-    {
-        this.x = x;
-        this.y = y;
-    }
-
-    // Getter ו-Setter עבור שדה פרטי x
-    public int GetX()
-    {
-        return this.x;
-    }
-
-    public void SetX(int value)
-    {
-        this.x = value;
-    }
-
-    // מאפיין (Property) ב-C# עם get ו-set עבור y
-    public int Y
-    {
-        get { return this.y; }
-        set { this.y = value; }
-    }
-
-    public override string ToString()
-    {
-        return "(" + this.x + ", " + this.y + ")";
-    }
-}`;
-
-                    const programCode = `// פעולת כניסה ראשית Program המשתמשת במחלקה Point מקובץ Point.cs
-public class Program
-{
-    public static void Main(Queue<Point> q)
-    {
-        Queue<Point> temp = new Queue<Point>();
-
-        while (!q.IsEmpty())
-        {
-            Point p = q.Remove();
-            Console.WriteLine("נקודה שנשלפה: " + p.ToString() + " [GetX()=" + p.GetX() + ", Y=" + p.Y + "]");
-            
-            // עדכון ערכים דרך ה-Setter והמאפיין
-            p.SetX(p.GetX() + 5);
-            p.Y = p.Y + 10;
-            Console.WriteLine("--> לאחר שינוי: " + p.ToString());
-
-            temp.Insert(p);
-        }
-
-        while (!temp.IsEmpty())
-        {
-            q.Insert(temp.Remove());
-        }
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code: programCode },
-                        'Point.cs': { name: 'Point.cs', className: 'Point', isMain: false, canDelete: true, code: pointCode }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = programCode;
-                    this.initialQueueType = 'Point';
-                    this.initialQueue = [{ x: 10, y: 20 }, { x: 30, y: 40 }, { x: 50, y: 60 }];
-                    this.initialParams = { q: this.initialQueue };
-                    this.renderEditorTabs();
-                } else if (choice === 'queue-of-queues') {
-                    const code = `// עבודה עם תור של תורים Queue<Queue<int>>
-public class Program
-{
-    public static void Main(Queue<Queue<int>> superQ)
-    {
-        Queue<Queue<int>> tempSuper = new Queue<Queue<int>>();
-        int grandTotal = 0;
-
-        while (!superQ.IsEmpty())
-        {
-            Queue<int> subQ = superQ.Remove();
-            Console.WriteLine("מעבד תור פנימי: " + subQ.ToString());
-
-            int subSum = 0;
-            Queue<int> tempSub = new Queue<int>();
-
-            while (!subQ.IsEmpty())
-            {
-                int val = subQ.Remove();
-                subSum = subSum + val;
-                tempSub.Insert(val);
-            }
-
-            // שחזור התור הפנימי
-            while (!tempSub.IsEmpty())
-            {
-                subQ.Insert(tempSub.Remove());
-            }
-
-            Console.WriteLine("סכום התור הפנימי: " + subSum);
-            grandTotal = grandTotal + subSum;
-            tempSuper.Insert(subQ);
-        }
-
-        // שחזור תור התורים
-        while (!tempSuper.IsEmpty())
-        {
-            superQ.Insert(tempSuper.Remove());
-        }
-
-        Console.WriteLine("סכום כולל של כל התורים: " + grandTotal);
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialQueueType = 'Queue<int>';
-                    this.initialQueue = [[10, 20], [30, 40, 50], [60]];
-                    this.initialParams = { superQ: [[10, 20], [30, 40, 50], [60]] };
-                    this.renderEditorTabs();
-                } else if (choice === 'multi-params') {
-                    const code = `// דוגמה עם שני תורים ומשתנים מרובים המועברים לפעולה Main
-public class Program
-{
-    public static void Main(Queue<int> q, Queue<int> r, string tag)
-    {
-        Console.WriteLine("התחלת עיבוד עבור תגית: " + tag);
-
-        // העברת איברים מ-q ל-r עם הכפלה
-        while (!q.IsEmpty())
-        {
-            int item = q.Remove();
-            Console.WriteLine("מעביר מ-q: " + item + " -> מכניס ל-r: " + (item * 2));
-            r.Insert(item * 2);
-        }
-
-        Console.WriteLine("סיום העברה! תור r מכיל כעת את כל הערכים המוכפלים.");
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialQueueType = 'int';
-                    this.initialQueue = [14, 7, 25, 9, 31];
-                    this.initialParams = {
-                        q: [14, 7, 25, 9, 31],
-                        r: [100, 200],
-                        tag: "מיזוג-נתונים"
-                    };
-                    this.renderEditorTabs();
-                } else if (choice === 'stack-basic') {
-                    const code = `// פעולות בסיסיות במחסנית Stack<int> (Push, Pop, Top, IsEmpty)
-public class Program
-{
-    public static void Main(Stack<int> s)
-    {
-        Console.WriteLine("הצצה לראש המחסנית: " + s.Top());
-        Stack<int> temp = new Stack<int>();
-
-        // שליפת כל האיברים מהמחסנית והדפסתם
-        while (!s.IsEmpty())
-        {
-            int val = s.Pop();
-            Console.WriteLine("נשלף מהמחסנית: " + val);
-            temp.Push(val);
-        }
-
-        // שחזור המחסנית המקורית (שמירה על כלל הברזל בבגרות)
-        while (!temp.IsEmpty())
-        {
-            s.Push(temp.Pop());
-        }
-
-        Console.WriteLine("המחסנית שוחזרה בהצלחה!");
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialParams = { s: [10, 20, 30, 40, 50] };
-                    this.setStudioMode('stack', true);
-                    this.renderEditorTabs();
-                } else if (choice === 'stack-reverse-queue') {
-                    const code = `// היפוך סדר איברי תור בעזרת מחסנית עזר (שאלה קלאסית בבגרות)
-public class Program
-{
-    public static void ReverseQueue(Queue<int> q)
-    {
-        Stack<int> st = new Stack<int>();
-
-        // שלב א': ריקון התור לתוך המחסנית (LIFO יהפוך את סדר האיברים)
-        while (!q.IsEmpty())
-        {
-            int item = q.Remove();
-            Console.WriteLine("מעביר מתור למחסנית: " + item);
-            st.Push(item);
-        }
-
-        // שלב ב': ריקון המחסנית בחזרה לתור
-        while (!st.IsEmpty())
-        {
-            int item = st.Pop();
-            Console.WriteLine("מחזיר ממחסנית לתור: " + item);
-            q.Insert(item);
-        }
-
-        Console.WriteLine("סיום! סדר איברי התור התהפך בהצלחה.");
-    }
-
-    public static void Main(Queue<int> q)
-    {
-        ReverseQueue(q);
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialParams = { q: [10, 20, 30, 40, 50] };
-                    this.initialQueue = [10, 20, 30, 40, 50];
-                    this.initialQueueType = 'int';
-                    this.setStudioMode('all', true);
-                    this.renderEditorTabs();
-                } else if (choice === 'stack-brackets') {
-                    const code = `// בדיקת איזון ותקינות סוגריים באמצעות מחסנית תווים
-public class Program
-{
-    public static bool IsBalanced(string expr)
-    {
-        Stack<char> st = new Stack<char>();
-
-        for (int i = 0; i < expr.Length; i++)
-        {
-            char c = expr[i];
-            if (c == '(' || c == '[')
-            {
-                st.Push(c);
-                Console.WriteLine("הכנסת סוגר פותח למחסנית: " + c);
-            }
-            else if (c == ')' || c == ']')
-            {
-                if (st.IsEmpty())
-                {
-                    Console.WriteLine("שגיאה: נמצא סוגר סוגר ללא פותח!");
-                    return false;
-                }
-                char top = st.Pop();
-                Console.WriteLine("בדיקת התאמה: נשלף " + top + " מול " + c);
-                if (c == ')' && top != '(') return false;
-                if (c == ']' && top != '[') return false;
-            }
-        }
-
-        bool balanced = st.IsEmpty();
-        Console.WriteLine("האם כל הסוגריים נסגרו כראוי? " + balanced);
-        return balanced;
-    }
-
-    public static void Main(string expr)
-    {
-        bool result = IsBalanced(expr);
-        Console.WriteLine("תוצאה סופית: " + (result ? "מאוזן ומסודר!" : "לא מאוזן!"));
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialParams = { expr: "([()]())" };
-                    this.setStudioMode('stack', true);
-                    this.renderEditorTabs();
-                } else if (choice === 'node-basic') {
-                    const code = `// סריקה והדפסה של שרשרת חוליות Node<int>
-public class Program
-{
-    public static void Main(Node<int> chain)
-    {
-        Console.WriteLine("שרשרת חוליות התחלתית: " + chain.ToString());
-        
-        // שימוש במצביע עזר (Runner) כדי לא לאבד את ראש השרשרת (כלל ברזל בבגרות!)
-        Node<int> pos = chain;
-        int count = 0;
-        int sum = 0;
-        
-        while (pos != null)
-        {
-            int val = pos.GetValue(); // לפי תקן Unit4.dll (ניתן גם GetInfo)
-            Console.WriteLine("חוליה " + count + ": ערך = " + val);
-            sum = sum + val;
-            count++;
-            pos = pos.GetNext();
-        }
-        
-        Console.WriteLine("אורך השרשרת: " + count + ", סכום הערכים: " + sum);
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialParams = { chain: [12, 5, 8, 20] };
-                    this.setStudioMode('node', true);
-                    this.renderEditorTabs();
-                } else if (choice === 'binnode-basic') {
-                    const code = `// סריקה תוכית (In-order) וחישוב צמתים בעץ בינארי BinNode<int>
-public class Program
-{
-    public static int CountNodes(BinNode<int> root)
-    {
-        if (root == null)
-            return 0;
-        return 1 + CountNodes(root.GetLeft()) + CountNodes(root.GetRight());
-    }
-
-    public static void InOrder(BinNode<int> root)
-    {
-        if (root != null)
-        {
-            InOrder(root.GetLeft());
-            Console.WriteLine("ביקור בצומת: " + root.GetValue());
-            InOrder(root.GetRight());
-        }
-    }
-
-    public static void Main(BinNode<int> root)
-    {
-        Console.WriteLine("--- סריקה תוכית (In-order) של העץ ---");
-        InOrder(root);
-        int total = CountNodes(root);
-        Console.WriteLine("סך כל הצמתים בעץ: " + total);
-    }
-}`;
-                    this.editorFiles = {
-                        'Program.cs': { name: 'Program.cs', isMain: true, canDelete: false, code }
-                    };
-                    this.activeFileName = 'Program.cs';
-                    this.dom.codeTextarea.value = code;
-                    this.initialParams = { root: [10, 5, 15, 3, 7] };
-                    this.setStudioMode('binnode', true);
-                    this.renderEditorTabs();
-                }
-
-                this.saveCurrentModeState();
-
-                if (this.dom.initialQueueInput) {
-                    this.dom.initialQueueInput.value = this.formatQueueInputValue(this.initialQueue, this.initialQueueType);
-                }
-                this.updateLineNumbers();
-                this.recompile();
-                if (this.switchQueueTab) this.switchQueueTab('queue-view');
+                this.loadPreset(choice);
                 e.target.value = '';
             });
         }
+    }
+
+    loadPreset(presetId) {
+        if (!presetId) return;
+        const presets = (typeof getPresetsQueue === 'function')
+            ? getPresetsQueue(this.currentLang)
+            : (this.currentLang === 'java' ? window.PRESETS_QUEUE_JAVA : window.PRESETS_QUEUE_CS);
+        if (!presets || !presets[presetId]) return;
+
+        const preset = presets[presetId];
+        this.currentPresetId = presetId;
+
+        this.editorFiles = {};
+        const mainFile = this.getMainFileName();
+        for (const [fName, fCode] of Object.entries(preset.files)) {
+            const isMain = (fName === mainFile || fName === 'Program.cs' || fName === 'Main.java');
+            const resolvedName = isMain ? mainFile : fName;
+            this.editorFiles[resolvedName] = {
+                name: resolvedName,
+                isMain: isMain,
+                canDelete: !isMain,
+                code: fCode
+            };
+        }
+
+        this.activeFileName = preset.activeFile ? (preset.activeFile === 'Program.cs' || preset.activeFile === 'Main.java' ? mainFile : preset.activeFile) : mainFile;
+        if (!this.editorFiles[this.activeFileName]) {
+            this.activeFileName = mainFile;
+        }
+
+        if (this.dom.codeTextarea && this.editorFiles[this.activeFileName]) {
+            this.dom.codeTextarea.value = this.editorFiles[this.activeFileName].code;
+        }
+
+        this.initialQueueType = preset.initialQueueType || (this.currentLang === 'java' ? 'Integer' : 'int');
+        this.initialQueue = preset.initialQueue ? (Array.isArray(preset.initialQueue) ? [...preset.initialQueue] : preset.initialQueue) : [];
+        this.initialParams = preset.initialParams ? JSON.parse(JSON.stringify(preset.initialParams)) : {};
+
+        if (preset.studioMode) {
+            this.setStudioMode(preset.studioMode, true);
+        }
+
+        this.renderEditorTabs();
+        this.saveCurrentModeState();
+
+        if (this.dom.initialQueueInput) {
+            this.dom.initialQueueInput.value = this.formatQueueInputValue(this.initialQueue, this.initialQueueType);
+        }
+        this.updateLineNumbers();
+        this.recompile();
+        if (this.switchQueueTab) this.switchQueueTab('queue-view');
+    }
+
+    updatePresetsDropdown() {
+        if (!this.dom.exampleCodeSelect) return;
+        const presets = (typeof getPresetsQueue === 'function')
+            ? getPresetsQueue(this.currentLang)
+            : (this.currentLang === 'java' ? window.PRESETS_QUEUE_JAVA : window.PRESETS_QUEUE_CS);
+        if (!presets) return;
+
+        const currentVal = this.currentPresetId || '';
+        this.dom.exampleCodeSelect.innerHTML = '';
+
+        const defOption = document.createElement('option');
+        defOption.value = '';
+        defOption.textContent = '⚡ דוגמאות קוד לבחירה...';
+        this.dom.exampleCodeSelect.appendChild(defOption);
+
+        for (const [id, p] of Object.entries(presets)) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = p.title;
+            if (id === currentVal) opt.selected = true;
+            this.dom.exampleCodeSelect.appendChild(opt);
+        }
+    }
+
+    setLanguage(lang) {
+        if (!lang) return;
+        if (this.currentLang === lang) return;
+        this.currentLang = lang;
+        this.currentLanguage = lang;
+
+        // עדכון מצב כפתורי הפיל
+        const pills = document.querySelectorAll('.btn-lang-pill');
+        pills.forEach(btn => {
+            const bLang = btn.dataset.lang || (btn.id && btn.id.includes('java') ? 'java' : 'csharp');
+            btn.classList.toggle('active', bLang === lang);
+        });
+
+        // עדכון תגיות ושמות במסך
+        const badgeLangTag = document.getElementById('badge-lang-tag');
+        if (badgeLangTag) {
+            badgeLangTag.textContent = lang === 'java' ? 'Java בגרות' : 'C# בגרות';
+        }
+        const editorTitleText = document.getElementById('editor-title-text');
+        if (editorTitleText) {
+            editorTitleText.textContent = lang === 'java' ? 'עורך קוד Java ומפרש פעולות' : 'עורך קוד C# ומפרש פונקציות';
+        }
+
+        this.updatePresetsDropdown();
+
+        if (this.currentPresetId) {
+            this.loadPreset(this.currentPresetId);
+        } else {
+            const defState = this.getDefaultModeState(this.studioMode, lang);
+            this.editorFiles = JSON.parse(JSON.stringify(defState.editorFiles));
+            this.activeFileName = defState.activeFileName;
+            this.initialParams = JSON.parse(JSON.stringify(defState.initialParams));
+            this.initialQueue = Array.isArray(defState.initialQueue) ? [...defState.initialQueue] : defState.initialQueue;
+            this.initialQueueType = defState.initialQueueType || (lang === 'java' ? 'Integer' : 'int');
+
+            if (this.dom.codeTextarea && this.editorFiles[this.activeFileName]) {
+                this.dom.codeTextarea.value = this.editorFiles[this.activeFileName].code;
+            }
+            this.renderEditorTabs();
+            this.updateLineNumbers();
+            this.recompile();
+        }
+
+        this.setStatus('info', `שפת הסטודיו הוחלפה בהצלחה ל-${lang === 'java' ? 'Java' : 'C#'}`);
+    }
+
+    setStatus(type, text) {
+        if (!this.dom.statusBanner || !this.dom.statusText) return;
+        this.dom.statusBanner.className = `status-banner ${type}`;
+        if (this.dom.statusIcon) {
+            this.dom.statusIcon.textContent = type === 'error' ? '❌' : (type === 'success' ? '✅' : '⚡');
+        }
+        this.dom.statusText.textContent = text;
     }
 
     setupEditorTabs() {
@@ -1422,6 +1134,7 @@ public class Program
                 return;
             }
             if (val.endsWith('.cs')) val = val.substring(0, val.length - 3).trim();
+            if (val.endsWith('.java')) val = val.substring(0, val.length - 5).trim();
             if (!/^[a-zA-Z_]\w*$/.test(val)) {
                 this.showInputError('שם מחלקה חייב להתחיל באות או קו תחתון באנגלית ולהכיל אותיות ומספרים בלבד (למשל Student, Car, Point).');
                 input.focus();
@@ -1441,13 +1154,38 @@ public class Program
     }
 
     addNewClassFile(className, customCode = null) {
-        const fileName = `${className}.cs`;
+        const isJava = (this.currentLang === 'java');
+        const ext = isJava ? 'java' : 'cs';
+        const fileName = `${className}.${ext}`;
         if (this.editorFiles[fileName]) {
             this.switchEditorTab(fileName);
             return;
         }
 
-        const defaultCode = customCode || `public class ${className}
+        const defaultCode = customCode || (isJava ? `public class ${className} {
+    // הגדרת תכונות/שדות (Fields)
+    private int id;
+
+    // פעולה בונה (Constructor)
+    public ${className}(int id) {
+        this.id = id;
+    }
+
+    // Getters & Setters
+    public int getId() {
+        return this.id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    @Override
+    public String toString() {
+        return "${className}(" + this.id + ")";
+    }
+}
+` : `public class ${className}
 {
     // הגדרת תכונות/שדות (Fields)
     private int id;
@@ -1474,7 +1212,7 @@ public class Program
         return "${className}(" + this.id + ")";
     }
 }
-`;
+`);
 
         if (this.editorFiles[this.activeFileName]) {
             this.editorFiles[this.activeFileName].code = this.dom.codeTextarea.value;
@@ -1496,12 +1234,15 @@ public class Program
     }
 
     deleteClassFile(fileName) {
-        if (fileName === 'Program.cs') return;
+        const mainFile = this.getMainFileName();
+        if (fileName === mainFile || (this.editorFiles[fileName] && this.editorFiles[fileName].isMain)) return;
         delete this.editorFiles[fileName];
 
         if (this.activeFileName === fileName) {
-            this.activeFileName = 'Program.cs';
-            this.dom.codeTextarea.value = this.editorFiles['Program.cs'].code;
+            this.activeFileName = mainFile;
+            if (this.editorFiles[mainFile]) {
+                this.dom.codeTextarea.value = this.editorFiles[mainFile].code;
+            }
             this.updateLineNumbers();
         }
 
@@ -1526,7 +1267,7 @@ public class Program
         // הדגשת שורה עדכנית אם הצעד הנוכחי שייך לקובץ זה
         if (this.frames && this.frames[this.currentFrameIdx]) {
             const f = this.frames[this.currentFrameIdx];
-            if ((f.file || 'Program.cs') === fileName) {
+            if ((f.file || this.getMainFileName()) === fileName) {
                 this.renderEditorHighlight(f.line, Boolean(f.error));
             } else {
                 this.renderEditorHighlight(0, false);
@@ -1538,8 +1279,8 @@ public class Program
         if (!type) return false;
         if (type === 'Point') return true;
         if (this.interpreter && this.interpreter.classes && this.interpreter.classes.has(type)) return true;
-        const primitives = ['int', 'char', 'string', 'bool', 'double', 'float', 'long', 'void'];
-        if (!primitives.includes(type) && !type.startsWith('Queue')) return true;
+        const primitives = ['int', 'char', 'string', 'bool', 'double', 'float', 'long', 'void', 'Integer', 'Character', 'String', 'Boolean', 'Double'];
+        if (!primitives.includes(type) && !type.startsWith('Queue') && !type.startsWith('Stack') && !type.startsWith('Node') && !type.startsWith('BinNode')) return true;
         return false;
     }
 
@@ -2939,7 +2680,7 @@ public class Program
         }
 
         // מעבר אוטומטי ללשונית הקובץ המתאים לפי הצעד הנוכחי רק בעת ניגון/צעד מפורש
-        const frameFile = frame.file || 'Program.cs';
+        const frameFile = frame.file || this.getMainFileName();
         const shouldFollow = options.followFile === true || (options.followFile !== false && this.isPlaying);
         if (shouldFollow && frameFile !== this.activeFileName && this.editorFiles[frameFile]) {
             this.switchEditorTab(frameFile);
@@ -3998,7 +3739,7 @@ public class Program
         }
 
         if (outputs.length === 0) {
-            this.dom.consoleOutput.innerHTML = '<div class="console-empty">הפלט של Console.WriteLine יופיע כאן...</div>';
+            this.dom.consoleOutput.innerHTML = '<div class="console-empty">הפלט של Console.WriteLine / System.out.println יופיע כאן...</div>';
             return;
         }
 
