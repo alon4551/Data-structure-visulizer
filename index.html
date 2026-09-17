@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>סטודיו ומפרש מבני נתונים ב-C# ו-Java | אלון שרייבמן</title>
-    <link rel="stylesheet" href="css/style.css?v=2.6">
+    <link rel="stylesheet" href="css/style.css?v=2.7">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔄</text></svg>">
     <script>
         // בקר מעבר כרטיסיות גלובלי מיידי
@@ -87,40 +87,42 @@
                 </a>
             </nav>
 
-            <!-- בורר שפה ראשי C# / Java -->
-            <div class="lang-switch-pills header-lang-pills" id="header-lang-switch-pills" title="בחר שפת תכנות (C# / Java)">
-                <button type="button" class="btn-lang-pill active" id="header-btn-lang-cs" data-lang="csharp" title="תכנות בשפת C#">
-                    <span class="lang-pill-dot dot-cs"></span>
-                    <span>C#</span>
-                </button>
-                <button type="button" class="btn-lang-pill" id="header-btn-lang-java" data-lang="java" title="תכנות בשפת Java">
-                    <span class="lang-pill-dot dot-java"></span>
-                    <span>Java</span>
-                </button>
-            </div>
+            <div class="header-actions">
+                <!-- בורר מצבי סטודיו (Studio Mode Bar) -->
+                <div class="studio-mode-bar" id="studio-mode-bar">
+                    <button type="button" class="btn-studio-mode active" data-mode="all" title="הצג את כל מבני הנתונים הפעילים יחד (שאלות בגרות משולבות)">
+                        <span class="mode-icon">🌐</span>
+                        <span>הכל (משולב)</span>
+                    </button>
+                    <button type="button" class="btn-studio-mode" data-mode="queue" title="מיקוד בתורים בלבד (Queue)">
+                        <span class="mode-icon">🔄</span>
+                        <span>תור (Queue)</span>
+                    </button>
+                    <button type="button" class="btn-studio-mode" data-mode="stack" title="מיקוד במחסניות בלבד (Stack)">
+                        <span class="mode-icon">🥞</span>
+                        <span>מחסנית (Stack)</span>
+                    </button>
+                    <button type="button" class="btn-studio-mode" data-mode="node" title="שרשרת חוליות (Node) - שלב 2">
+                        <span class="mode-icon">🔗</span>
+                        <span>חוליה (Node)</span>
+                    </button>
+                    <button type="button" class="btn-studio-mode" data-mode="binnode" title="עץ בינארי (BinNode) - שלב 3">
+                        <span class="mode-icon">🌳</span>
+                        <span>עץ בינארי (BinNode)</span>
+                    </button>
+                </div>
 
-            <!-- בורר מצבי סטודיו (Studio Mode Bar) -->
-            <div class="studio-mode-bar" id="studio-mode-bar">
-                <button type="button" class="btn-studio-mode active" data-mode="all" title="הצג את כל מבני הנתונים הפעילים יחד (שאלות בגרות משולבות)">
-                    <span class="mode-icon">🌐</span>
-                    <span>הכל (משולב)</span>
-                </button>
-                <button type="button" class="btn-studio-mode" data-mode="queue" title="מיקוד בתורים בלבד (Queue)">
-                    <span class="mode-icon">🔄</span>
-                    <span>תור (Queue)</span>
-                </button>
-                <button type="button" class="btn-studio-mode" data-mode="stack" title="מיקוד במחסניות בלבד (Stack)">
-                    <span class="mode-icon">🥞</span>
-                    <span>מחסנית (Stack)</span>
-                </button>
-                <button type="button" class="btn-studio-mode" data-mode="node" title="שרשרת חוליות (Node) - שלב 2">
-                    <span class="mode-icon">🔗</span>
-                    <span>חוליה (Node)</span>
-                </button>
-                <button type="button" class="btn-studio-mode" data-mode="binnode" title="עץ בינארי (BinNode) - שלב 3">
-                    <span class="mode-icon">🌳</span>
-                    <span>עץ בינארי (BinNode)</span>
-                </button>
+                <!-- בורר שפה ראשי C# / Java (הוזז לקצה השמאלי כדי שלא יפריע לסרגל המעבר) -->
+                <div class="lang-switch-pills header-lang-pills" id="header-lang-switch-pills" title="בחר שפת תכנות (C# / Java)">
+                    <button type="button" class="btn-lang-pill active" id="header-btn-lang-cs" data-lang="csharp" title="תכנות בשפת C#">
+                        <span class="lang-pill-dot dot-cs"></span>
+                        <span>C#</span>
+                    </button>
+                    <button type="button" class="btn-lang-pill" id="header-btn-lang-java" data-lang="java" title="תכנות בשפת Java">
+                        <span class="lang-pill-dot dot-java"></span>
+                        <span>Java</span>
+                    </button>
+                </div>
             </div>
         </div>
     </header>
