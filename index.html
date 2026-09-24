@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>סטודיו ומפרש מבני נתונים ב-C# ו-Java | אלון שרייבמן</title>
-    <link rel="stylesheet" href="css/style.css?v=2.7">
+    <link rel="stylesheet" href="css/style.css?v=2.8">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔄</text></svg>">
     <script>
         // בקר מעבר כרטיסיות גלובלי מיידי
@@ -110,18 +110,18 @@
                         <span class="mode-icon">🌳</span>
                         <span>עץ בינארי (BinNode)</span>
                     </button>
-                </div>
-
-                <!-- בורר שפה ראשי C# / Java (הוזז לקצה השמאלי כדי שלא יפריע לסרגל המעבר) -->
-                <div class="lang-switch-pills header-lang-pills" id="header-lang-switch-pills" title="בחר שפת תכנות (C# / Java)">
-                    <button type="button" class="btn-lang-pill active" id="header-btn-lang-cs" data-lang="csharp" title="תכנות בשפת C#">
-                        <span class="lang-pill-dot dot-cs"></span>
-                        <span>C#</span>
-                    </button>
-                    <button type="button" class="btn-lang-pill" id="header-btn-lang-java" data-lang="java" title="תכנות בשפת Java">
-                        <span class="lang-pill-dot dot-java"></span>
-                        <span>Java</span>
-                    </button>
+                    <!-- מפריד ובורר שפה (C# / Java) בתוך סרגל הסטודיו -->
+                    <span class="studio-mode-bar-sep"></span>
+                    <div class="lang-switch-pills header-lang-pills" id="header-lang-switch-pills" title="בחר שפת תכנות (C# / Java)">
+                        <button type="button" class="btn-lang-pill active" id="header-btn-lang-cs" data-lang="csharp" title="תכנות בשפת C#">
+                            <span class="lang-pill-dot dot-cs"></span>
+                            <span>C#</span>
+                        </button>
+                        <button type="button" class="btn-lang-pill" id="header-btn-lang-java" data-lang="java" title="תכנות בשפת Java">
+                            <span class="lang-pill-dot dot-java"></span>
+                            <span>Java</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -455,17 +455,6 @@
                         <span id="editor-title-text">עורך קוד C# ומפרש פונקציות</span>
                     </div>
                     <div class="card-header-actions">
-                        <!-- בורר שפה מהיר בעורך -->
-                        <div class="lang-switch-pills" id="lang-switch-pills" title="החלף שפת עורך (C# / Java)">
-                            <button type="button" class="btn-lang-pill active" id="btn-lang-cs" data-lang="csharp" title="תכנות בשפת C#">
-                                <span class="lang-pill-dot dot-cs"></span>
-                                <span>C#</span>
-                            </button>
-                            <button type="button" class="btn-lang-pill" id="btn-lang-java" data-lang="java" title="תכנות בשפת Java">
-                                <span class="lang-pill-dot dot-java"></span>
-                                <span>Java</span>
-                            </button>
-                        </div>
                         <select id="example-code-select" class="example-select" title="טען תבנית קוד">
                             <option value="">⚡ דוגמאות קוד לבחירה...</option>
                             <option value="basic">🔹 בסיסי: Queue&lt;int&gt; (מציאת מקסימום)</option>
