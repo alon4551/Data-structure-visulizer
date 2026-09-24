@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>סטודיו ומפרש מבני נתונים ב-C# ו-Java | אלון שרייבמן</title>
-    <link rel="stylesheet" href="css/style.css?v=2.9">
+    <link rel="stylesheet" href="css/style.css?v=3.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔄</text></svg>">
     <script>
         // בקר מעבר כרטיסיות גלובלי מיידי
@@ -421,40 +421,13 @@
         <!-- צד שמאל בממשק RTL: עמודת העורך והבקרה (Editor & Control Column) -->
         <div class="editor-column" id="editor-column">
             
-            <!-- 1. סרגל בקרת הרצה -->
-            <div class="card controls-card" id="controls-card">
-                <div class="card-header controls-header">
-                    <div class="card-title">
-                        <span>⏯️</span>
-                        <span>בקרת הרצה וניפוי שגיאות</span>
+            <section class="editor-panel" id="editor-panel">
+                <!-- 1. סרגל לשוניות קבצים, בחירת דוגמאות והוספת מחלקה -->
+                <div class="editor-tabs-bar" id="editor-tabs-bar">
+                    <div class="editor-tabs-list" id="editor-tabs-list">
+                        <!-- לשוניות קבצים נטענות באופן דינמי -->
                     </div>
-                    <div class="card-header-actions">
-                        <div id="step-counter" class="step-info">צעד 1 / 1</div>
-                        <button type="button" class="btn-icon-toggle" id="btn-toggle-controls" title="מזער / הרחב">▾</button>
-                    </div>
-                </div>
-                <div class="controls-bar-body" id="controls-body">
-                    <div class="control-btn-group">
-                        <button id="btn-play" class="btn btn-success">▶ נגן</button>
-                        <button id="btn-step-prev" class="btn btn-secondary">צעד קודם ◀</button>
-                        <button id="btn-step-next" class="btn btn-primary">▶ צעד הבא</button>
-                        <button id="btn-reset" class="btn btn-danger">איפוס ↺</button>
-                    </div>
-                    <div class="speed-control">
-                        <label for="speed-slider">מהירות:</label>
-                        <input type="range" id="speed-slider" class="speed-slider" min="1" max="10" value="6">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 2. עורך קוד C# ומפרש פונקציות (גמיש ונגלל) -->
-            <section class="card editor-panel" id="editor-panel">
-                <div class="card-header">
-                    <div class="card-title">
-                        <span>💻</span>
-                        <span id="editor-title-text">עורך קוד C# ומפרש פונקציות</span>
-                    </div>
-                    <div class="card-header-actions">
+                    <div class="editor-tabs-actions">
                         <select id="example-code-select" class="example-select" title="טען תבנית קוד">
                             <option value="">⚡ דוגמאות קוד לבחירה...</option>
                             <option value="basic">🔹 בסיסי: Queue&lt;int&gt; (מציאת מקסימום)</option>
@@ -469,17 +442,6 @@
                             <option value="node-basic">🔗 שרשרת חוליות Node: סריקה וחישוב</option>
                             <option value="binnode-basic">🌳 עץ בינארי BinNode: סריקה תוכית (In-order)</option>
                         </select>
-                        <span class="badge" id="badge-lang-tag">C# בגרות</span>
-                        <span class="badge" title="לחץ Ctrl+Space להשלמה אוטומטית בכל עת">Ctrl+Space להשלמה</span>
-                    </div>
-                </div>
-
-                <!-- סרגל לשוניות קבצים ומחלקות (Editor File & Class Tabs) -->
-                <div class="editor-tabs-bar" id="editor-tabs-bar">
-                    <div class="editor-tabs-list" id="editor-tabs-list">
-                        <!-- לשוניות קבצים נטענות באופן דינמי -->
-                    </div>
-                    <div class="editor-tabs-actions">
                         <button type="button" class="btn-add-class-tab" id="btn-add-class-tab" title="הוסף מחלקה חדשה (Class)">
                             <span class="btn-add-icon">➕</span>
                             <span>מחלקה חדשה</span>
@@ -487,29 +449,55 @@
                     </div>
                 </div>
 
-                <div class="editor-wrapper">
-                    <div class="line-numbers" id="line-numbers">1<br>2<br>3<br>4<br></div>
-                    <div class="code-container">
-                        <div id="code-highlighter"></div>
-                        <textarea id="code-textarea" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+                <!-- 2. גוף עורך הקוד -->
+                <div class="editor-body">
+                    <div class="editor-wrapper">
+                        <div class="line-numbers" id="line-numbers">1<br>2<br>3<br>4<br></div>
+                        <div class="code-container">
+                            <div id="code-highlighter"></div>
+                            <textarea id="code-textarea" class="code-textarea" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
 
-                        <!-- חלון השלמה אוטומטית ותיעוד פדגוגי (IntelliSense) -->
-                        <div id="autocomplete-popup" class="autocomplete-popup" style="display: none;">
-                            <div class="autocomplete-list" id="autocomplete-list"></div>
-                            <div class="autocomplete-doc" id="autocomplete-doc"></div>
+                            <!-- חלון השלמה אוטומטית ותיעוד פדגוגי (IntelliSense) -->
+                            <div id="autocomplete-popup" class="autocomplete-popup" style="display: none;">
+                                <div class="autocomplete-list" id="autocomplete-list"></div>
+                                <div class="autocomplete-doc" id="autocomplete-doc"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- 3. סרגל משוב פדגוגי בעברית -->
-            <div id="status-banner" class="status-banner info">
-                <div class="status-content">
-                    <span id="status-icon" class="status-icon">⚡</span>
-                    <span id="status-text">מוכן להרצה</span>
+                <!-- 3. סרגל בקרת דיבאג בתחתית העורך (Debugger Controls Bar) -->
+                <div class="controls-bar" id="controls-card">
+                    <div class="playback-buttons">
+                        <button type="button" id="btn-play" class="btn-ctrl btn-ctrl-primary" title="נגן / השהה הרצה אוטומטית">
+                            <span>▶</span>
+                            <span>נגן</span>
+                        </button>
+                        <button type="button" id="btn-step-prev" class="btn-ctrl btn-ctrl-secondary" title="צעד קודם">
+                            <span>צעד קודם ◀</span>
+                        </button>
+                        <button type="button" id="btn-step-next" class="btn-ctrl btn-ctrl-secondary" title="צעד הבא">
+                            <span>▶ צעד הבא</span>
+                        </button>
+                        <button type="button" id="btn-reset" class="btn-ctrl btn-ctrl-danger" title="איפוס מלא">
+                            <span>איפוס ↺</span>
+                        </button>
+                    </div>
+                    <div class="speed-control">
+                        <label for="speed-slider">מהירות:</label>
+                        <input type="range" id="speed-slider" class="speed-slider" min="1" max="10" value="6">
+                        <div id="step-counter" class="step-info">צעד 1 / 1</div>
+                    </div>
                 </div>
-                <button type="button" class="btn-icon-toggle" id="btn-toggle-status" title="מזער / הרחב">▾</button>
-            </div>
+
+                <!-- 4. סרגל משוב פדגוגי בעברית -->
+                <div id="status-banner" class="status-banner info">
+                    <div class="status-content">
+                        <span id="status-icon" class="status-icon">⚡</span>
+                        <span id="status-text">מוכן להרצה</span>
+                    </div>
+                </div>
+            </section>
 
         </div>
 
