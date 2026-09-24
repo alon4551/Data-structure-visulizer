@@ -1876,10 +1876,67 @@ class RuntimeEnvironment {
 
         // פלט מסוף (Console Output)
         this.consoleOutputs = [];
+
+        // מעקב תשואות רקורסיה על עצי BinNode
+        this.treeNodeReturns = new Map(); // nodeId -> { nodeId, value, returnVal, returnFormatted, funcName, step }
+        this.treeBranchReturns = new Map(); // nodeId -> { left, leftFormatted, right, rightFormatted }
+        this.treeReturnsHistory = [];
+        this.activeTreeReturn = null;
+        this.lastTreeReturnFunc = null;
+    }
+
+    handleTreeReturn(targetBinNode, callerBinNode, callBranch, val, funcName) {
+        if (val === undefined) return;
+        const formatted = this.formatVal(val);
+        const returnEntry = {
+            nodeId: targetBinNode ? targetBinNode.id : null,
+            nodeValue: targetBinNode ? targetBinNode.value : null,
+            isNull: !targetBinNode,
+            callerNodeId: callerBinNode ? callerBinNode.id : null,
+            callerNodeValue: callerBinNode ? callerBinNode.value : null,
+            branch: callBranch,
+            returnVal: val,
+            returnFormatted: formatted,
+            funcName: funcName,
+            step: this.frames.length
+        };
+
+        this.activeTreeReturn = returnEntry;
+        this.treeReturnsHistory.push(returnEntry);
+
+        if (targetBinNode) {
+            this.treeNodeReturns.set(targetBinNode.id, {
+                nodeId: targetBinNode.id,
+                value: targetBinNode.value,
+                returnVal: val,
+                returnFormatted: formatted,
+                funcName: funcName,
+                step: this.frames.length
+            });
+        }
+
+        if (callerBinNode && callBranch) {
+            if (!this.treeBranchReturns.has(callerBinNode.id)) {
+                this.treeBranchReturns.set(callerBinNode.id, {});
+            }
+            const bInfo = this.treeBranchReturns.get(callerBinNode.id);
+            if (callBranch === 'left') {
+                bInfo.left = val;
+                bInfo.leftFormatted = formatted;
+            } else if (callBranch === 'right') {
+                bInfo.right = val;
+                bInfo.rightFormatted = formatted;
+            }
+        }
     }
 
     execute() {
         this.consoleOutputs = [];
+        this.treeNodeReturns = new Map();
+        this.treeBranchReturns = new Map();
+        this.treeReturnsHistory = [];
+        this.activeTreeReturn = null;
+        this.lastTreeReturnFunc = null;
         let entryFunction = null;
         if (this.functions.has('Main')) {
             entryFunction = this.functions.get('Main');
@@ -2354,7 +2411,7 @@ class RuntimeEnvironment {
         return pIdx === 0 ? [10, 20, 30, 40] : [5, 15, 25, 35];
     }
 
-    executeFunction(fn, args = []) {
+    executeFunction(fn, args = [], thisObj = null, callMeta = null) {
         const scope = new Map();
 
         // השמת פרמטרים
@@ -2383,11 +2440,55 @@ class RuntimeEnvironment {
         if (fn.file) this.currentFile = fn.file;
         if (fn.line) this.currentLine = fn.line;
 
+        // זיהוי האם הקריאה פועלת על עץ בינארי (BinNode)
+        let targetBinNode = null;
+        let isBinNodeCall = false;
+        let callerBinNode = null;
+        let callBranch = null;
+
+        for (let i = 0; i < fn.params.length; i++) {
+            const p = fn.params[i];
+            const arg = args[i];
+            const isBinParam = (p.type && (p.type.includes('BinNode') || p.type.includes('Node'))) ||
+                /^(root|tree|t|node|bin)\d*$/i.test(p.name);
+            if (arg instanceof BinNodeInstance) {
+                targetBinNode = arg;
+                isBinNodeCall = true;
+                break;
+            } else if (arg === null && (callMeta || isBinParam)) {
+                targetBinNode = null;
+                isBinNodeCall = true;
+                break;
+            }
+        }
+
+        if (callMeta) {
+            callerBinNode = callMeta.callerNode || null;
+            callBranch = callMeta.branch || null;
+        } else if (this.callStack.length > 0) {
+            const parentFrame = this.callStack[this.callStack.length - 1];
+            if (parentFrame && parentFrame.targetBinNode instanceof BinNodeInstance) {
+                if (targetBinNode && parentFrame.targetBinNode.left === targetBinNode) {
+                    callerBinNode = parentFrame.targetBinNode;
+                    callBranch = 'left';
+                } else if (targetBinNode && parentFrame.targetBinNode.right === targetBinNode) {
+                    callerBinNode = parentFrame.targetBinNode;
+                    callBranch = 'right';
+                }
+            }
+        }
+
         const frameInfo = {
             funcName: `${fn.name}(${fn.params.map(p => p.name).join(', ')})`,
+            fnName: fn.name,
             scope,
             line: fn.line,
-            file: fn.file || this.currentFile || 'Program.cs'
+            file: fn.file || this.currentFile || 'Program.cs',
+            isBinNodeCall,
+            targetBinNode,
+            callerBinNode,
+            callBranch,
+            returnHandled: false
         };
         this.callStack.push(frameInfo);
 
@@ -2406,7 +2507,12 @@ class RuntimeEnvironment {
                 }
             }
         } finally {
+            if (frameInfo.isBinNodeCall && returnVal !== undefined && !frameInfo.returnHandled) {
+                frameInfo.returnHandled = true;
+                this.handleTreeReturn(frameInfo.targetBinNode, frameInfo.callerBinNode, frameInfo.callBranch, returnVal, fn.name);
+            }
             this.recordFrame(fn.line, `סיום פונקציה ${fn.name}${returnVal !== undefined ? `, הוחזר: ${this.formatVal(returnVal)}` : ''}`);
+            this.activeTreeReturn = null;
             this.callStack.pop();
             this.currentFile = prevFile;
         }
@@ -2538,7 +2644,13 @@ class RuntimeEnvironment {
                 if (stmt.value) {
                     val = this.evaluateExpression(stmt.value, scope);
                 }
+                const topFrame = this.callStack.length > 0 ? this.callStack[this.callStack.length - 1] : null;
+                if (topFrame && topFrame.isBinNodeCall) {
+                    topFrame.returnHandled = true;
+                    this.handleTreeReturn(topFrame.targetBinNode, topFrame.callerBinNode, topFrame.callBranch, val, topFrame.fnName);
+                }
                 this.recordFrame(stmt.line, `ביצוע return: מחזיר ${this.formatVal(val)}`);
+                this.activeTreeReturn = null;
                 return { __isReturn: true, value: val };
             }
         }
@@ -3546,9 +3658,36 @@ class RuntimeEnvironment {
                 const funcName = expr.callee;
                 if (this.functions.has(funcName)) {
                     const targetFn = this.functions.get(funcName);
+                    let callMeta = null;
+                    if (expr.arguments && expr.arguments.length > 0) {
+                        for (let argIdx = 0; argIdx < expr.arguments.length; argIdx++) {
+                            const argExpr = expr.arguments[argIdx];
+                            let callerNode = null;
+                            let branch = null;
+                            if (argExpr.type === 'MethodCallExpression') {
+                                const mName = (argExpr.method || '').toLowerCase();
+                                if (mName === 'getleft' || mName === 'left') branch = 'left';
+                                else if (mName === 'getright' || mName === 'right') branch = 'right';
+                                if (branch && argExpr.object) {
+                                    try { callerNode = this.evaluateExpression(argExpr.object, scope); } catch (e) {}
+                                }
+                            } else if (argExpr.type === 'MemberExpression') {
+                                const pName = (argExpr.property || '').toLowerCase();
+                                if (pName === 'left') branch = 'left';
+                                else if (pName === 'right') branch = 'right';
+                                if (branch && argExpr.object) {
+                                    try { callerNode = this.evaluateExpression(argExpr.object, scope); } catch (e) {}
+                                }
+                            }
+                            if (callerNode instanceof BinNodeInstance) {
+                                callMeta = { callerNode, branch, paramIndex: argIdx };
+                                break;
+                            }
+                        }
+                    }
                     const evalArgs = expr.arguments.map(arg => this.evaluateExpression(arg, scope));
                     this.recordFrame(expr.line, `קריאה לפונקציה ${funcName}(${evalArgs.map(v => this.formatVal(v)).join(', ')})`);
-                    return this.executeFunction(targetFn, evalArgs);
+                    return this.executeFunction(targetFn, evalArgs, null, callMeta);
                 } else if (funcName === 'Console' || funcName === 'WriteLine' || funcName === 'print') {
                     let out = '';
                     if (expr.arguments && expr.arguments.length > 0) {
@@ -3923,6 +4062,10 @@ class RuntimeEnvironment {
                 const isPrimary = (node.id === primaryActiveId);
                 const isActive = isPrimary || activeBinNodeIds.has(node.id);
 
+                const retInfo = this.treeNodeReturns ? this.treeNodeReturns.get(node.id) : null;
+                const branchInfo = this.treeBranchReturns ? this.treeBranchReturns.get(node.id) : null;
+                const isReturningNow = Boolean(this.activeTreeReturn && this.activeTreeReturn.nodeId === node.id);
+
                 return {
                     id: node.id,
                     value: (node.value !== null && node.value !== undefined) ? node.value : 0,
@@ -3931,6 +4074,16 @@ class RuntimeEnvironment {
                     activePointers: activePointers,
                     isActive: isActive,
                     isPrimaryActive: isPrimary,
+                    returnValue: retInfo ? retInfo.returnVal : undefined,
+                    returnFormatted: retInfo ? retInfo.returnFormatted : undefined,
+                    returnFuncName: retInfo ? retInfo.funcName : undefined,
+                    isReturningNow: isReturningNow,
+                    leftReturn: branchInfo ? branchInfo.left : undefined,
+                    leftReturnFormatted: branchInfo ? branchInfo.leftFormatted : undefined,
+                    rightReturn: branchInfo ? branchInfo.right : undefined,
+                    rightReturnFormatted: branchInfo ? branchInfo.rightFormatted : undefined,
+                    isLeftReturningNow: Boolean(this.activeTreeReturn && this.activeTreeReturn.callerNodeId === node.id && this.activeTreeReturn.branch === 'left'),
+                    isRightReturningNow: Boolean(this.activeTreeReturn && this.activeTreeReturn.callerNodeId === node.id && this.activeTreeReturn.branch === 'right'),
                     left: serializeBinNode(node.left, visited),
                     right: serializeBinNode(node.right, visited)
                 };
@@ -3946,7 +4099,9 @@ class RuntimeEnvironment {
                     hasActiveNode: treeContainsActive,
                     activeNodeId: primaryActiveId,
                     isCurrentNull: (isCurrentNull && (!treeContainsActive || allIds.size > 0)),
-                    nullVarName: nullVarName
+                    nullVarName: nullVarName,
+                    activeReturn: this.activeTreeReturn ? { ...this.activeTreeReturn } : null,
+                    returnsHistory: this.treeReturnsHistory ? this.treeReturnsHistory.map(r => ({ ...r })) : []
                 });
             }
         });
@@ -3975,6 +4130,8 @@ class RuntimeEnvironment {
             stacks: stacksSnapshot,
             nodes: nodesSnapshot,
             trees: treesSnapshot,
+            treeReturn: this.activeTreeReturn ? { ...this.activeTreeReturn } : null,
+            treeReturnsHistory: this.treeReturnsHistory ? this.treeReturnsHistory.map(r => ({ ...r })) : [],
             variables: activeVariables,
             consoleOutputs: [...this.consoleOutputs],
             error: null,

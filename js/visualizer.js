@@ -208,6 +208,27 @@ class QueueVisualizerApp {
 
         this.applyStudioModeClass();
         this.updateContextualText(this.studioMode);
+
+        const presetParam = urlParams.get('preset');
+        if (presetParam) {
+            this.loadPreset(presetParam);
+        }
+
+        const stepParam = urlParams.get('step');
+        if (stepParam !== null) {
+            setTimeout(() => {
+                const stepNum = parseInt(stepParam, 10);
+                if (!isNaN(stepNum) && stepNum >= 0 && stepNum < this.frames.length) {
+                    this.currentFrameIdx = stepNum;
+                    this.renderCurrentFrame({ followFile: true });
+                }
+                if (urlParams.get('scroll') === 'stage' && this.dom.queuesStage) {
+                    this.dom.queuesStage.scrollTop = 140;
+                } else if (urlParams.get('scroll') === 'ledger' && this.dom.queuesStage) {
+                    this.dom.queuesStage.scrollTop = 260;
+                }
+            }, 150);
+        }
     }
 
     switchStudioMode(targetMode) {
@@ -3463,21 +3484,70 @@ public class Program
 
             computeLayout(rootNode, 0);
 
-            const colWidth = Math.max(68, Math.min(105, 780 / Math.max(1, totalNodes)));
-            const levelHeight = 85;
-            const svgWidth = Math.max(420, (colCounter + 1) * colWidth + 50);
-            const svgHeight = (maxDepth + 1) * levelHeight + 70;
+            const colWidth = Math.max(65, Math.min(100, 760 / Math.max(1, totalNodes)));
+            const levelHeight = 88;
+            const svgWidth = Math.max(400, (colCounter + 1) * colWidth + 40);
+            const svgHeight = (maxDepth + 1) * levelHeight + 72;
 
             // 2. חישוב קואורדינטות (x, y) לכל צומת
             const assignCoords = (node) => {
                 if (!node) return;
                 node.x = (node.colIndex + 0.8) * colWidth + 20;
-                node.y = 55 + node.depth * levelHeight;
+                node.y = 48 + node.depth * levelHeight;
                 if (node.left) assignCoords(node.left);
                 if (node.right) assignCoords(node.right);
             };
 
             assignCoords(rootNode);
+
+            // איסוף מידע על תשואת הרקורסיה בשלב הנוכחי
+            const activeReturn = treeEntry.activeReturn || (frame && frame.treeReturn);
+            const returnsHistory = treeEntry.returnsHistory || (frame && frame.treeReturnsHistory) || [];
+
+            let activeReturnBannerHtml = '';
+            if (activeReturn) {
+                const isNullRet = Boolean(activeReturn.isNull);
+                const branchHeb = activeReturn.branch === 'left' ? 'שמאל (Left)' : (activeReturn.branch === 'right' ? 'ימין (Right)' : '');
+                const descText = isNullRet
+                    ? `תת-עץ ${branchHeb} ריק (null) של צומת <strong>${this.escapeHtml(String(activeReturn.callerNodeValue))}</strong> החזיר ➔ <span class="ret-val-pill">${this.escapeHtml(String(activeReturn.returnFormatted))}</span>`
+                    : `קריאת רקורסיה על צומת <strong>${this.escapeHtml(String(activeReturn.nodeValue))}</strong> סיימה ומחזירה ➔ <span class="ret-val-pill">${this.escapeHtml(String(activeReturn.returnFormatted))}</span>`;
+
+                activeReturnBannerHtml = `
+                    <div class="bintree-return-banner">
+                        <span class="return-banner-badge">↩️ ערך מוחזר כעת</span>
+                        <span class="return-banner-text">${descText}</span>
+                    </div>
+                `;
+            }
+
+            let returnsLedgerHtml = '';
+            if (returnsHistory && returnsHistory.length > 0) {
+                returnsLedgerHtml = `
+                    <div class="bintree-returns-ledger">
+                        <div class="ledger-title">
+                            <span class="ledger-icon">🔄</span>
+                            <span>יומן ערכי החזרה של הרקורסיה (Call Returns):</span>
+                            <span class="ledger-count">${returnsHistory.length} החזרות</span>
+                        </div>
+                        <div class="ledger-chips-scroll">
+                            ${returnsHistory.map((item, idx) => {
+                                const isCurrent = frame && frame.step === item.step;
+                                const targetLabel = item.isNull
+                                    ? `null (${item.branch === 'left' ? 'L' : 'R'} של ${this.escapeHtml(String(item.callerNodeValue))})`
+                                    : `צומת ${this.escapeHtml(String(item.nodeValue))}`;
+                                return `
+                                    <div class="ledger-chip ${isCurrent ? 'active-step' : ''}" title="צעד ${item.step}">
+                                        <span class="chip-step">#${idx + 1}</span>
+                                        <span class="chip-target">${targetLabel}</span>
+                                        <span class="chip-arrow">➔</span>
+                                        <span class="chip-val">${this.escapeHtml(String(item.returnFormatted))}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
 
             treeCard.innerHTML = `
                 <div class="bintree-header">
@@ -3491,6 +3561,7 @@ public class Program
                         <span class="bintree-meta-item">צמתים: <strong>${totalNodes}</strong></span>
                         <span class="bintree-meta-item">עומק: <strong>${maxDepth}</strong></span>
                     </div>
+                    ${activeReturnBannerHtml}
                 </div>
                 <div class="bintree-svg-viewport">
                     <svg class="bintree-svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="${svgWidth}" height="${svgHeight}">
@@ -3503,11 +3574,22 @@ public class Program
                                 <stop offset="0%" stop-color="#f59e0b" />
                                 <stop offset="100%" stop-color="#b45309" />
                             </linearGradient>
+                            <linearGradient id="returnBadgeGrad-${tIdx}" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#059669" />
+                                <stop offset="100%" stop-color="#047857" />
+                            </linearGradient>
+                            <linearGradient id="returnActiveGrad-${tIdx}" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#10b981" />
+                                <stop offset="100%" stop-color="#059669" />
+                            </linearGradient>
                             <filter id="nodeGlow-${tIdx}" x="-20%" y="-20%" width="140%" height="140%">
                                 <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0284c7" flood-opacity="0.35" />
                             </filter>
                             <filter id="nodeActiveGlow-${tIdx}" x="-40%" y="-40%" width="180%" height="180%">
                                 <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#f59e0b" flood-opacity="0.8" />
+                            </filter>
+                            <filter id="returnActiveGlow-${tIdx}" x="-30%" y="-30%" width="160%" height="160%">
+                                <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#10b981" flood-opacity="0.9" />
                             </filter>
                         </defs>
                         <!-- שכבת ענפים (Edges) -->
@@ -3516,6 +3598,7 @@ public class Program
                         <g class="tree-nodes-layer" id="nodes-layer-${tIdx}"></g>
                     </svg>
                 </div>
+                ${returnsLedgerHtml}
             `;
 
             const edgesLayer = treeCard.querySelector(`#edges-layer-${tIdx}`);
@@ -3549,10 +3632,56 @@ public class Program
                     lblL.setAttribute('fill', isLeftActive ? '#f59e0b' : '#94a3b8');
                     lblL.setAttribute('font-size', '11');
                     lblL.setAttribute('font-weight', '700');
-                    lblL.textContent = 'L';
+                    lblL.textContent = (node.left && node.left.returnFormatted !== undefined)
+                        ? `L (↩ ${node.left.returnFormatted})`
+                        : 'L';
                     edgesLayer.appendChild(lblL);
 
                     renderTreeSvg(node.left);
+                } else if (node.leftReturnFormatted !== undefined) {
+                    // ענף שמאל ריק (null base-case return)
+                    const isLeftRetNow = Boolean(node.isLeftReturningNow);
+                    const nullX = node.x - 26;
+                    const nullY = node.y + 38;
+
+                    const edgeNullL = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    edgeNullL.setAttribute('x1', node.x - 12);
+                    edgeNullL.setAttribute('y1', node.y + 16);
+                    edgeNullL.setAttribute('x2', nullX);
+                    edgeNullL.setAttribute('y2', nullY);
+                    edgeNullL.setAttribute('stroke', isLeftRetNow ? '#34d399' : '#475569');
+                    edgeNullL.setAttribute('stroke-width', isLeftRetNow ? '2.5' : '1.5');
+                    edgeNullL.setAttribute('stroke-dasharray', '3 3');
+                    edgesLayer.appendChild(edgeNullL);
+
+                    const nullG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    nullG.setAttribute('transform', `translate(${nullX}, ${nullY})`);
+
+                    const nullText = `L: ∅ ➔ ${node.leftReturnFormatted}`;
+                    const nWidth = Math.max(58, nullText.length * 7 + 10);
+
+                    const nRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    nRect.setAttribute('x', -nWidth / 2);
+                    nRect.setAttribute('y', '-9');
+                    nRect.setAttribute('width', nWidth);
+                    nRect.setAttribute('height', '18');
+                    nRect.setAttribute('rx', '9');
+                    nRect.setAttribute('fill', isLeftRetNow ? '#065f46' : '#1e293b');
+                    nRect.setAttribute('stroke', isLeftRetNow ? '#34d399' : '#64748b');
+                    nRect.setAttribute('stroke-width', isLeftRetNow ? '2' : '1');
+                    if (isLeftRetNow) nRect.setAttribute('filter', `url(#returnActiveGlow-${tIdx})`);
+                    nullG.appendChild(nRect);
+
+                    const nTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    nTxt.setAttribute('text-anchor', 'middle');
+                    nTxt.setAttribute('dy', '3');
+                    nTxt.setAttribute('fill', isLeftRetNow ? '#ffffff' : '#94a3b8');
+                    nTxt.setAttribute('font-size', '10');
+                    nTxt.setAttribute('font-weight', '700');
+                    nTxt.textContent = nullText;
+                    nullG.appendChild(nTxt);
+
+                    nodesLayer.appendChild(nullG);
                 }
 
                 // ענף ימין
@@ -3579,10 +3708,56 @@ public class Program
                     lblR.setAttribute('fill', isRightActive ? '#f59e0b' : '#94a3b8');
                     lblR.setAttribute('font-size', '11');
                     lblR.setAttribute('font-weight', '700');
-                    lblR.textContent = 'R';
+                    lblR.textContent = (node.right && node.right.returnFormatted !== undefined)
+                        ? `R (↩ ${node.right.returnFormatted})`
+                        : 'R';
                     edgesLayer.appendChild(lblR);
 
                     renderTreeSvg(node.right);
+                } else if (node.rightReturnFormatted !== undefined) {
+                    // ענף ימין ריק (null base-case return)
+                    const isRightRetNow = Boolean(node.isRightReturningNow);
+                    const nullX = node.x + 26;
+                    const nullY = node.y + 38;
+
+                    const edgeNullR = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    edgeNullR.setAttribute('x1', node.x + 12);
+                    edgeNullR.setAttribute('y1', node.y + 16);
+                    edgeNullR.setAttribute('x2', nullX);
+                    edgeNullR.setAttribute('y2', nullY);
+                    edgeNullR.setAttribute('stroke', isRightRetNow ? '#34d399' : '#475569');
+                    edgeNullR.setAttribute('stroke-width', isRightRetNow ? '2.5' : '1.5');
+                    edgeNullR.setAttribute('stroke-dasharray', '3 3');
+                    edgesLayer.appendChild(edgeNullR);
+
+                    const nullG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    nullG.setAttribute('transform', `translate(${nullX}, ${nullY})`);
+
+                    const nullText = `R: ∅ ➔ ${node.rightReturnFormatted}`;
+                    const nWidth = Math.max(58, nullText.length * 7 + 10);
+
+                    const nRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    nRect.setAttribute('x', -nWidth / 2);
+                    nRect.setAttribute('y', '-9');
+                    nRect.setAttribute('width', nWidth);
+                    nRect.setAttribute('height', '18');
+                    nRect.setAttribute('rx', '9');
+                    nRect.setAttribute('fill', isRightRetNow ? '#065f46' : '#1e293b');
+                    nRect.setAttribute('stroke', isRightRetNow ? '#34d399' : '#64748b');
+                    nRect.setAttribute('stroke-width', isRightRetNow ? '2' : '1');
+                    if (isRightRetNow) nRect.setAttribute('filter', `url(#returnActiveGlow-${tIdx})`);
+                    nullG.appendChild(nRect);
+
+                    const nTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    nTxt.setAttribute('text-anchor', 'middle');
+                    nTxt.setAttribute('dy', '3');
+                    nTxt.setAttribute('fill', isRightRetNow ? '#ffffff' : '#94a3b8');
+                    nTxt.setAttribute('font-size', '10');
+                    nTxt.setAttribute('font-weight', '700');
+                    nTxt.textContent = nullText;
+                    nullG.appendChild(nTxt);
+
+                    nodesLayer.appendChild(nullG);
                 }
 
                 // קבוצת הצומת
@@ -3658,6 +3833,42 @@ public class Program
                     ptrG.appendChild(ptrTxtEl);
 
                     nodeGroup.appendChild(ptrG);
+                }
+
+                // תגית ערך מוחזר מהפונקציה על צומת זה (Return Value Badge)
+                if (node.returnFormatted !== undefined) {
+                    const isRetNow = Boolean(node.isReturningNow);
+                    const retG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    retG.setAttribute('class', `bintree-return-pill-group ${isRetNow ? 'active-pulse' : ''}`);
+                    retG.setAttribute('transform', 'translate(0, 33)');
+
+                    const retText = `↩ ${node.returnFormatted}`;
+                    const badgeWidth = Math.max(48, retText.length * 8 + 14);
+
+                    const retRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    retRect.setAttribute('x', -badgeWidth / 2);
+                    retRect.setAttribute('y', '-11');
+                    retRect.setAttribute('width', badgeWidth);
+                    retRect.setAttribute('height', '20');
+                    retRect.setAttribute('rx', '10');
+                    retRect.setAttribute('fill', isRetNow ? `url(#returnActiveGrad-${tIdx})` : '#064e3b');
+                    retRect.setAttribute('stroke', isRetNow ? '#34d399' : '#10b981');
+                    retRect.setAttribute('stroke-width', isRetNow ? '2.5' : '1.5');
+                    if (isRetNow) {
+                        retRect.setAttribute('filter', `url(#returnActiveGlow-${tIdx})`);
+                    }
+                    retG.appendChild(retRect);
+
+                    const retTxtEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    retTxtEl.setAttribute('text-anchor', 'middle');
+                    retTxtEl.setAttribute('dy', '3.5');
+                    retTxtEl.setAttribute('fill', isRetNow ? '#ffffff' : '#a7f3d0');
+                    retTxtEl.setAttribute('font-size', '11');
+                    retTxtEl.setAttribute('font-weight', '800');
+                    retTxtEl.textContent = retText;
+                    retG.appendChild(retTxtEl);
+
+                    nodeGroup.appendChild(retG);
                 }
 
                 nodesLayer.appendChild(nodeGroup);
