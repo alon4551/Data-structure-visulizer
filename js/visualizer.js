@@ -3821,15 +3821,12 @@ public class Program
             const savedWidth = localStorage.getItem('queue_viz_split_width');
             if (savedWidth) {
                 const w = parseFloat(savedWidth);
-                if (!isNaN(w) && w >= 20 && w <= 80) {
+                if (!isNaN(w) && w >= 25 && w <= 75) {
                     container.style.gridTemplateColumns = `${w}% 10px ${100 - w}%`;
                 }
             }
 
             let isDraggingHoriz = false;
-            let startX = 0;
-            let startVisualWidth = 0;
-            let containerWidth = 0;
 
             const onPointerMoveHoriz = (e) => {
                 if (!isDraggingHoriz) return;
@@ -3837,21 +3834,25 @@ public class Program
                     onPointerUpHoriz(e);
                     return;
                 }
-                const isRtl = document.documentElement.dir === 'rtl' || getComputedStyle(document.body).direction === 'rtl';
-                const deltaX = e.clientX - startX;
-                // In RTL, dragging mouse left increases right column (visual-panel)
-                const currentVisualWidth = isRtl ? (startVisualWidth - deltaX) : (startVisualWidth + deltaX);
+                const containerRect = container.getBoundingClientRect();
+                const totalWidth = container.clientWidth;
+                if (totalWidth <= 0) return;
 
-                const minVisual = 280;
-                const minEditor = 260;
-                const maxVisual = containerWidth - minEditor - 20;
-                const clamped = Math.max(minVisual, Math.min(maxVisual, currentVisualWidth));
+                // In RTL, visual panel is on the right, editor is on the left
+                const offsetRight = containerRect.right - e.clientX;
 
-                const visualPercent = (clamped / containerWidth) * 100;
+                const minVisual = 320;
+                const minEditor = 280;
+                const maxVisual = Math.max(minVisual + 40, totalWidth - minEditor - 20);
+                const clamped = Math.max(minVisual, Math.min(maxVisual, offsetRight));
+
+                const visualPercent = (clamped / totalWidth) * 100;
                 const editorPercent = 100 - visualPercent;
 
                 container.style.gridTemplateColumns = `${visualPercent.toFixed(2)}% 10px ${editorPercent.toFixed(2)}%`;
-                localStorage.setItem('queue_viz_split_width', visualPercent.toFixed(2));
+                try {
+                    localStorage.setItem('queue_viz_split_width', visualPercent.toFixed(2));
+                } catch (err) {}
             };
 
             const onPointerUpHoriz = (e) => {
@@ -3872,12 +3873,6 @@ public class Program
             const onPointerDownHoriz = (e) => {
                 if (e.button && e.button !== 0) return;
                 isDraggingHoriz = true;
-                startX = e.clientX;
-                const containerRect = container.getBoundingClientRect();
-                containerWidth = containerRect.width;
-                const visualPanel = document.getElementById('visual-panel') || document.querySelector('.visual-panel');
-                startVisualWidth = visualPanel ? visualPanel.getBoundingClientRect().width : containerWidth * 0.58;
-
                 splitter.classList.add('is-dragging');
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
@@ -3891,6 +3886,14 @@ public class Program
             };
 
             splitter.addEventListener('pointerdown', onPointerDownHoriz);
+
+            // Double click to reset to 55% / 45%
+            splitter.addEventListener('dblclick', () => {
+                container.style.gridTemplateColumns = '55% 10px 45%';
+                try {
+                    localStorage.setItem('queue_viz_split_width', '55');
+                } catch (err) {}
+            });
         }
 
         // 2. Vertical Resizer (שינוי גובה חלון תצוגת התור)
