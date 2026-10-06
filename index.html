@@ -382,6 +382,11 @@
                             <span>מסוף פלט (Console)</span>
                             <span class="badge console-badge" id="console-count-badge">0 שורות</span>
                         </button>
+                        <button type="button" class="tab-btn" id="tab-btn-input" data-tab="input" onclick="switchInspectionTab('input')">
+                            <span>📥</span>
+                            <span>טבלת קלט נתונים</span>
+                            <span class="badge console-badge" id="input-count-badge" style="background: #0284c7; color: white;">0 קלטים</span>
+                        </button>
                     </div>
                     <div class="card-header-actions">
                         <button type="button" class="btn-icon-toggle" id="btn-toggle-tabs" title="מזער / הרחב כרטיסיות">▾</button>
@@ -414,7 +419,47 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                    <!-- לשונית 4: טבלת קלט נתונים (Console.ReadLine / Scanner) -->
+                    <div class="tab-pane" id="tab-pane-input">
+                        <div class="input-table-card" id="card-input-table">
+                            <div class="input-table-toolbar">
+                                <button type="button" id="btn-input-add-row" class="btn-quick">➕ הוסף שורה</button>
+                                <button type="button" id="btn-input-rand-values" class="btn-quick">🎲 הגרל ערכים (10-99)</button>
+                                <button type="button" id="btn-input-toggle-paste" class="btn-quick">📋 הדבק רשימה</button>
+                                <button type="button" id="btn-input-detect-from-code" class="btn-quick">🔍 זהה מהקוד</button>
+                                <button type="button" id="btn-input-clear-all" class="btn-quick" style="color: #ef4444;">🧹 נקה הכל</button>
+                                <button type="button" id="btn-input-apply-run" class="btn-ctrl btn-ctrl-primary" style="margin-right: auto; padding: 0.25rem 0.8rem;">🔄 החל והרץ מחדש</button>
+                            </div>
+
+                            <!-- אזור הדבקה מהירה -->
+                            <div id="input-quick-paste-box" class="input-quick-paste-box" style="display: none; margin: 0.5rem 0; padding: 0.5rem; background: var(--bg-surface2, #1e293b); border-radius: 6px; border: 1px dashed #38bdf8;">
+                                <label style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.25rem; color: #f8fafc;">הזן ערכים מופרדים בפסיקים, רווחים או שורות חדשות (למשל: 5, 85, 92, 78):</label>
+                                <textarea id="input-paste-textarea" class="textarea-input" rows="2" placeholder="5, 85, 92, 78, 90, 88"></textarea>
+                                <div style="margin-top: 0.35rem; display: flex; gap: 0.5rem;">
+                                    <button type="button" id="btn-input-do-paste" class="btn-ctrl btn-ctrl-primary" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">הזן לטבלה</button>
+                                    <button type="button" id="btn-input-cancel-paste" class="btn-quick" style="font-size: 0.8rem;">ביטול</button>
+                                </div>
+                            </div>
+
+                            <div class="input-table-container">
+                                <table class="data-input-table" id="data-input-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 40px; text-align: center;">#</th>
+                                            <th style="width: 140px;">ערך להזנה</th>
+                                            <th style="width: 90px;">טיפוס</th>
+                                            <th>הערה / מיקום בקוד</th>
+                                            <th style="width: 140px;">סטטוס קליטה</th>
+                                            <th style="width: 40px; text-align: center;">מחק</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="data-input-tbody">
+                                        <!-- שורות מנוהלות דינמית על ידי InputTableManager -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
             </div>
 
         </section>
@@ -447,7 +492,12 @@
                             <option value="stack-brackets">🥞 בדיקת תקינות סוגריים: Stack&lt;char&gt;</option>
                             <option value="node-basic">🔗 שרשרת חוליות Node: סריקה וחישוב</option>
                             <option value="binnode-basic">🌳 עץ בינארי BinNode: סריקה תוכית (In-order)</option>
+                            <option value="input_queue_loop">📥 קלט נתונים לתור: קליטה בלולאה (Console.ReadLine / Scanner)</option>
                         </select>
+                        <button type="button" class="btn-add-class-tab" id="btn-quick-open-input" title="פתח טבלת קלט נתונים לקונסול (Console.ReadLine / Scanner)" style="background: rgba(2, 132, 199, 0.15); border: 1px solid #0284c7; color: #38bdf8;">
+                            <span class="btn-add-icon">📥</span>
+                            <span>טבלת קלט</span>
+                        </button>
                         <button type="button" class="btn-add-class-tab" id="btn-add-class-tab" title="הוסף מחלקה חדשה (Class)">
                             <span class="btn-add-icon">➕</span>
                             <span>מחלקה חדשה</span>
@@ -518,10 +568,11 @@
     </footer>
 
     <!-- סקריפטים -->
-    <script src="js/csharp_queue_interpreter.js?v=3.0"></script>
-    <script src="js/presets.js?v=3.0"></script>
-    <script src="js/autocomplete.js?v=3.0"></script>
-    <script src="js/visualizer.js?v=3.0"></script>
+    <script src="js/input_table_manager.js?v=4.0"></script>
+    <script src="js/csharp_queue_interpreter.js?v=4.0"></script>
+    <script src="js/presets.js?v=4.0"></script>
+    <script src="js/autocomplete.js?v=4.0"></script>
+    <script src="js/visualizer.js?v=4.0"></script>
 
 </body>
 </html>

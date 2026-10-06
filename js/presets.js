@@ -487,6 +487,46 @@ public class Program
     }
 }`
         }
+    },
+    'input_queue_loop': {
+        id: 'input_queue_loop',
+        title: '📥 קלט נתונים לתור: קליטה בלולאה (Console.ReadLine)',
+        studioMode: 'queue',
+        initialQueueType: 'int',
+        initialQueue: [],
+        initialParams: {},
+        inputs: [
+            { value: '3', type: 'int', note: 'כמות איברים לקליטה n' },
+            { value: '45', type: 'int', note: 'ערך איבר 1' },
+            { value: '82', type: 'int', note: 'ערך איבר 2' },
+            { value: '19', type: 'int', note: 'ערך איבר 3' }
+        ],
+        files: {
+            'Program.cs': `// קליטת איברים בלולאה מהמשתמש באמצעות Console.ReadLine והכנסתם לתור
+public class Program
+{
+    public static void Main()
+    {
+        Queue<int> q = new Queue<int>();
+        Console.WriteLine("הכנס כמות איברים לקליטה:");
+        int n = int.Parse(Console.ReadLine());
+
+        for (int i = 0; i < n; i++)
+        {
+            Console.WriteLine("הכנס ערך לאיבר מספר " + (i + 1) + ":");
+            int val = int.Parse(Console.ReadLine());
+            q.Insert(val);
+        }
+
+        Console.WriteLine("--- סיום קליטה! הדפסת וריקון איברי התור ---");
+        while (!q.IsEmpty())
+        {
+            int item = q.Remove();
+            Console.WriteLine("נשלף מהתור: " + item);
+        }
+    }
+}`
+        }
     }
 };
 
@@ -912,6 +952,45 @@ public class Main {
         inOrder(root);
         int total = countNodes(root);
         System.out.println("סך כל הצמתים בעץ: " + total);
+    }
+}`
+        }
+    },
+    'input_queue_loop': {
+        id: 'input_queue_loop',
+        title: '📥 קלט נתונים לתור: קליטה בלולאה (Scanner)',
+        studioMode: 'queue',
+        initialQueueType: 'Integer',
+        initialQueue: [],
+        initialParams: {},
+        inputs: [
+            { value: '3', type: 'int', note: 'כמות איברים לקליטה n' },
+            { value: '45', type: 'int', note: 'ערך איבר 1' },
+            { value: '82', type: 'int', note: 'ערך איבר 2' },
+            { value: '19', type: 'int', note: 'ערך איבר 3' }
+        ],
+        files: {
+            'Main.java': `// קליטת איברים בלולאה מהמשתמש באמצעות Scanner והכנסתם לתור ב-Java
+import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner reader = new Scanner(System.in);
+        Queue<Integer> q = new Queue<Integer>();
+        System.out.println("הכנס כמות איברים לקליטה:");
+        int n = reader.nextInt();
+
+        for (int i = 0; i < n; i++) {
+            System.out.println("הכנס ערך לאיבר מספר " + (i + 1) + ":");
+            int val = reader.nextInt();
+            q.insert(val);
+        }
+
+        System.out.println("--- סיום קליטה! הדפסת וריקון איברי התור ---");
+        while (!q.isEmpty()) {
+            int item = q.remove();
+            System.out.println("נשלף מהתור: " + item);
+        }
     }
 }`
         }

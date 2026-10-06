@@ -14,15 +14,35 @@
 class CSharpQueueInterpreter {
     constructor() {
         this.maxSteps = 1500; // הגנה מפני לולאות אינסופיות
+        this.inputQueue = [];
+    }
+
+    setInputQueue(inputs) {
+        if (Array.isArray(inputs)) {
+            this.inputQueue = inputs.map(item => {
+                if (typeof item === 'object' && item !== null && 'value' in item) {
+                    return String(item.value);
+                }
+                return String(item);
+            });
+        } else if (typeof inputs === 'string') {
+            this.inputQueue = inputs.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+        } else {
+            this.inputQueue = [];
+        }
     }
 
     /**
      * הרצת קוד C# ויצירת מערך TraceFrames להנפשה
      * @param {string} sourceCode קוד מקור C# של התלמיד
      * @param {Array<number>} initialQueueValues מערך ערכים ראשוני לתור q
+     * @param {Array<string>} inputQueue תור קלט מקונסול וסורק
      * @returns {Object} { frames: TraceFrame[], error: string|null, originalPreserved: boolean|null }
      */
-    run(sourceCode, initialQueueValues = [10, 20, 30, 40]) {
+    run(sourceCode, initialQueueValues = [10, 20, 30, 40], inputQueue = null) {
+        if (inputQueue !== null && inputQueue !== undefined && (Array.isArray(inputQueue) ? inputQueue.length > 0 : String(inputQueue).trim().length > 0)) {
+            this.setInputQueue(inputQueue);
+        }
         let runtime = null;
         try {
             const preprocessed = this.preprocess(sourceCode);
@@ -34,7 +54,7 @@ class CSharpQueueInterpreter {
                     this.classes.set(cls.name, cls);
                 }
             }
-            runtime = new RuntimeEnvironment(ast, initialQueueValues, this.maxSteps);
+            runtime = new RuntimeEnvironment(ast, initialQueueValues, this.maxSteps, this.inputQueue);
             const trace = runtime.execute();
             trace.classes = this.classes;
             trace.ast = ast;
@@ -1826,9 +1846,18 @@ function removeNodeAtPath(root, path) {
  * סביבת הרצה המייצרת את ה-Trace עבור הדיבאגר
  */
 class RuntimeEnvironment {
-    constructor(ast, initialValues, maxSteps = 1500) {
+    constructor(ast, initialValues, maxSteps = 1500, inputQueue = []) {
         this.ast = ast;
-        this.initialValues = initialValues || [];
+        const rawInputs = Array.isArray(inputQueue) ? inputQueue : (initialValues && initialValues.inputs ? initialValues.inputs : []);
+        this.inputQueue = rawInputs.map(item => {
+            if (typeof item === 'object' && item !== null && 'value' in item) {
+                return String(item.value);
+            }
+            return String(item);
+        });
+        this.consumedInputs = [];
+        this.currentInputIndex = 0;
+        this.lastInputEvent = null;
         this.maxSteps = maxSteps;
         this.stepCount = 0;
         this.frames = [];
@@ -2573,7 +2602,15 @@ class RuntimeEnvironment {
                         this.knownBinNodeVars.add(stmt.varName);
                     }
                     scope.set(stmt.varName, val);
-                    this.recordFrame(stmt.line, `הצהרה על משתנה ${stmt.varName} = ${this.formatVal(val)}`);
+                    if (this.lastInputEvent && this.lastInputEvent.line === stmt.line) {
+                        this.lastInputEvent.target = stmt.varName;
+                        this.recordFrame(stmt.line, `📥 קליטת נתון והשמה: ${stmt.varName} = ${this.formatVal(val)} (קלט #${this.lastInputEvent.index + 1})`, 'idle', false, null, null, null, null, {
+                            isInputStep: true,
+                            inputEvent: this.lastInputEvent
+                        });
+                    } else {
+                        this.recordFrame(stmt.line, `הצהרה על משתנה ${stmt.varName} = ${this.formatVal(val)}`);
+                    }
                 }
                 break;
             }
@@ -2937,7 +2974,15 @@ class RuntimeEnvironment {
                             this.recordFrame(expr.line, `אתחול והשמת מחסנית חדשה בחלון: ${targetName} = new Stack()`, 'idle', false, null, null, null, targetName);
                             return finalVal;
                         }
-                        this.recordFrame(expr.line, `השמה: ${targetName} = ${this.formatVal(finalVal)}`);
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.target = targetName;
+                            this.recordFrame(expr.line, `📥 קליטת נתון והשמה: ${targetName} = ${this.formatVal(finalVal)} (קלט #${this.lastInputEvent.index + 1})`, 'idle', false, null, null, null, null, {
+                                isInputStep: true,
+                                inputEvent: this.lastInputEvent
+                            });
+                        } else {
+                            this.recordFrame(expr.line, `השמה: ${targetName} = ${this.formatVal(finalVal)}`);
+                        }
                         return finalVal;
                     }
 
@@ -3364,6 +3409,28 @@ class RuntimeEnvironment {
                     return null;
                 }
 
+                // בדיקת קריאה לקליטת קלט מ-Console.ReadLine()
+                if (isConsoleCall && expr.method === 'ReadLine') {
+                    const inputIdx = this.currentInputIndex++;
+                    const rawVal = this.inputQueue.length > 0 ? this.inputQueue.shift() : '0';
+                    const inputEvent = {
+                        index: inputIdx,
+                        rawVal: String(rawVal),
+                        parsedVal: String(rawVal),
+                        type: 'string',
+                        source: 'Console.ReadLine()',
+                        line: expr.line
+                    };
+                    this.consumedInputs.push(inputEvent);
+                    this.lastInputEvent = inputEvent;
+                    this.consoleOutputs.push(`> ${rawVal}`);
+                    this.recordFrame(expr.line, `📥 קליטת נתון מהמשתמש [קלט #${inputIdx + 1}]: "${rawVal}" (Console.ReadLine)`, 'idle', false, null, null, null, null, {
+                        isInputStep: true,
+                        inputEvent: inputEvent
+                    });
+                    return String(rawVal);
+                }
+
                 // פעולות Math סטטיות
                 const rawObjName = (expr.object && expr.object.type === 'Identifier') ? expr.object.name : (typeof expr.object === 'string' ? expr.object : null);
                 if (rawObjName === 'Math') {
@@ -3385,28 +3452,92 @@ class RuntimeEnvironment {
                     if (fn === 'parseint' || fn === 'parse') {
                         const val = this.evaluateExpression(expr.arguments[0], scope);
                         const res = parseInt(val, 10);
-                        return isNaN(res) ? 0 : res;
+                        const finalVal = isNaN(res) ? 0 : res;
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'int';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
                     }
                 }
-                if (rawObjName === 'Double' || rawObjName === 'double') {
+                if (rawObjName === 'Double' || rawObjName === 'double' || rawObjName === 'Float' || rawObjName === 'float') {
                     const fn = (expr.method || '').toLowerCase();
-                    if (fn === 'parsedouble' || fn === 'parse') {
+                    if (fn === 'parsedouble' || fn === 'parsefloat' || fn === 'parse') {
                         const val = this.evaluateExpression(expr.arguments[0], scope);
                         const res = parseFloat(val);
-                        return isNaN(res) ? 0.0 : res;
+                        const finalVal = isNaN(res) ? 0.0 : res;
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'double';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
+                    }
+                }
+                if (rawObjName === 'Char' || rawObjName === 'char') {
+                    const fn = (expr.method || '').toLowerCase();
+                    if (fn === 'parse') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const str = String(val !== undefined && val !== null ? val : '');
+                        const finalVal = str.length > 0 ? str.charAt(0) : '\0';
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'char';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
+                    }
+                }
+                if (rawObjName === 'Boolean' || rawObjName === 'bool') {
+                    const fn = (expr.method || '').toLowerCase();
+                    if (fn === 'parse' || fn === 'parseboolean') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const finalVal = String(val).toLowerCase() === 'true';
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'bool';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
                     }
                 }
                 if (rawObjName === 'Convert') {
                     const fn = (expr.method || '').toLowerCase();
-                    if (fn === 'toint32') {
+                    if (fn === 'toint32' || fn === 'toint64') {
                         const val = this.evaluateExpression(expr.arguments[0], scope);
                         const res = parseInt(val, 10);
-                        return isNaN(res) ? 0 : res;
+                        const finalVal = isNaN(res) ? 0 : res;
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'int';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
                     }
-                    if (fn === 'todouble') {
+                    if (fn === 'todouble' || fn === 'tosingle') {
                         const val = this.evaluateExpression(expr.arguments[0], scope);
                         const res = parseFloat(val);
-                        return isNaN(res) ? 0.0 : res;
+                        const finalVal = isNaN(res) ? 0.0 : res;
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'double';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
+                    }
+                    if (fn === 'tochar') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const str = String(val !== undefined && val !== null ? val : '');
+                        const finalVal = str.length > 0 ? str.charAt(0) : '\0';
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'char';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
+                    }
+                    if (fn === 'toboolean') {
+                        const val = this.evaluateExpression(expr.arguments[0], scope);
+                        const finalVal = String(val).toLowerCase() === 'true';
+                        if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
+                            this.lastInputEvent.type = 'bool';
+                            this.lastInputEvent.parsedVal = finalVal;
+                        }
+                        return finalVal;
                     }
                 }
 
@@ -3415,10 +3546,49 @@ class RuntimeEnvironment {
                 // תמיכה ב-Scanner
                 if (obj && obj.__isScanner) {
                     const m = (expr.method || '').toLowerCase();
-                    if (m === 'nextint') return 0;
-                    if (m === 'nextline' || m === 'next') return '';
-                    if (m === 'hasnext' || m === 'hasnextint') return true;
+                    if (m === 'hasnext' || m === 'hasnextint' || m === 'hasnextdouble' || m === 'hasnextline') {
+                        return this.inputQueue.length > 0;
+                    }
                     if (m === 'close') return null;
+
+                    const inputIdx = this.currentInputIndex++;
+                    const rawVal = this.inputQueue.length > 0 ? this.inputQueue.shift() : '0';
+                    let parsedVal = rawVal;
+                    let targetType = 'string';
+
+                    if (m === 'nextint' || m === 'nextlong' || m === 'nextshort' || m === 'nextbyte') {
+                        const parsed = parseInt(rawVal, 10);
+                        parsedVal = isNaN(parsed) ? 0 : parsed;
+                        targetType = 'int';
+                    } else if (m === 'nextdouble' || m === 'nextfloat') {
+                        const parsed = parseFloat(rawVal);
+                        parsedVal = isNaN(parsed) ? 0.0 : parsed;
+                        targetType = 'double';
+                    } else if (m === 'nextboolean') {
+                        parsedVal = String(rawVal).toLowerCase() === 'true';
+                        targetType = 'bool';
+                    } else if (m === 'next' || m === 'nextline') {
+                        parsedVal = String(rawVal);
+                        targetType = 'string';
+                    }
+
+                    const inputEvent = {
+                        index: inputIdx,
+                        rawVal: String(rawVal),
+                        parsedVal: parsedVal,
+                        type: targetType,
+                        source: `Scanner.${expr.method}()`,
+                        line: expr.line
+                    };
+                    this.consumedInputs.push(inputEvent);
+                    this.lastInputEvent = inputEvent;
+                    this.consoleOutputs.push(`> ${rawVal}`);
+
+                    this.recordFrame(expr.line, `📥 קליטת נתון מהמשתמש [קלט #${inputIdx + 1}]: "${rawVal}" (Scanner.${expr.method})`, 'idle', false, null, null, null, null, {
+                        isInputStep: true,
+                        inputEvent: inputEvent
+                    });
+                    return parsedVal;
                 }
 
                 // תמיכה במתודות של ClassInstance
@@ -3781,7 +3951,7 @@ class RuntimeEnvironment {
         });
     }
 
-    recordFrame(line, description, opType = 'idle', isCompleted = false, originalPreserved = null, targetQueueName = null, targetValue = null, targetStackName = null) {
+    recordFrame(line, description, opType = 'idle', isCompleted = false, originalPreserved = null, targetQueueName = null, targetValue = null, targetStackName = null, extra = {}) {
         this.stepCount++;
 
         // שכפול מצב התורים כולל אובייקטים ותורים מקוננים (Deep Snapshotting)
@@ -4134,6 +4304,9 @@ class RuntimeEnvironment {
             treeReturnsHistory: this.treeReturnsHistory ? this.treeReturnsHistory.map(r => ({ ...r })) : [],
             variables: activeVariables,
             consoleOutputs: [...this.consoleOutputs],
+            isInputStep: !!(extra && extra.isInputStep),
+            inputEvent: (extra && extra.inputEvent) || this.lastInputEvent || null,
+            consumedInputsCount: this.currentInputIndex || 0,
             error: null,
             isCompleted,
             originalPreserved

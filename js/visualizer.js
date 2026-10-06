@@ -67,7 +67,28 @@ class QueueVisualizerApp {
             this.dom.codeTextarea.value = this.editorFiles[this.activeFileName].code;
         }
         this.updateLineNumbers();
+        this.initInputTable();
         this.recompile();
+    }
+
+    initInputTable() {
+        if (typeof InputTableManager !== 'undefined') {
+            this.inputTableManager = new InputTableManager({
+                containerId: 'card-input-table',
+                tbodyId: 'data-input-tbody',
+                countBadgeId: 'input-count-badge',
+                statusBadgeId: 'input-table-status-badge',
+                onInputsChanged: (inputs) => {
+                    this.interpreter.setInputQueue(inputs);
+                    this.recompile();
+                }
+            });
+            this.inputTableManager.onDetectRequest = () => {
+                const mainCode = this.editorFiles[this.activeFileName]?.code || this.dom.codeTextarea?.value || '';
+                this.inputTableManager.autoPopulateIfEmpty(mainCode);
+                this.recompile();
+            };
+        }
     }
 
     cacheDom() {
@@ -146,9 +167,13 @@ class QueueVisualizerApp {
         this.dom.tabBtnVars = document.getElementById('tab-btn-vars');
         this.dom.tabBtnStack = document.getElementById('tab-btn-stack');
         this.dom.tabBtnConsole = document.getElementById('tab-btn-console');
+        this.dom.tabBtnInput = document.getElementById('tab-btn-input');
         this.dom.tabPaneVars = document.getElementById('tab-pane-vars');
         this.dom.tabPaneStack = document.getElementById('tab-pane-stack');
         this.dom.tabPaneConsole = document.getElementById('tab-pane-console');
+        this.dom.tabPaneInput = document.getElementById('tab-pane-input');
+        this.dom.btnQuickOpenInput = document.getElementById('btn-quick-open-input');
+        this.dom.inputCountBadge = document.getElementById('input-count-badge');
 
         this.dom.exampleCodeSelect = document.getElementById('example-code-select');
         this.dom.autocompletePopup = document.getElementById('autocomplete-popup');
@@ -855,12 +880,13 @@ public class Program
             this.dom.tabBtnQueueInit.addEventListener('click', () => switchQueueTab('queue-init'));
         }
 
-        // מעבר בין כרטיסיות מעקב ופלט (Tabs: מעקב משתנים / מחסנית קריאות / מסוף פלט)
+        // מעבר בין כרטיסיות מעקב ופלט (Tabs: מעקב משתנים / מחסנית קריאות / מסוף פלט / טבלת קלט)
         const switchInspectionTab = (tabName) => {
             const tabs = [
                 { name: 'vars', btn: this.dom.tabBtnVars, pane: this.dom.tabPaneVars },
                 { name: 'stack', btn: this.dom.tabBtnStack, pane: this.dom.tabPaneStack },
-                { name: 'console', btn: this.dom.tabBtnConsole, pane: this.dom.tabPaneConsole }
+                { name: 'console', btn: this.dom.tabBtnConsole, pane: this.dom.tabPaneConsole },
+                { name: 'input', btn: this.dom.tabBtnInput, pane: this.dom.tabPaneInput }
             ];
 
             tabs.forEach(t => {
@@ -888,6 +914,12 @@ public class Program
         if (this.dom.tabBtnConsole) {
             this.dom.tabBtnConsole.addEventListener('click', () => switchInspectionTab('console'));
         }
+        if (this.dom.tabBtnInput) {
+            this.dom.tabBtnInput.addEventListener('click', () => switchInspectionTab('input'));
+        }
+        if (this.dom.btnQuickOpenInput) {
+            this.dom.btnQuickOpenInput.addEventListener('click', () => switchInspectionTab('input'));
+        }
 
         // האזנה מואצלת ללחיצות על כרטיסיות (Event Delegation)
         document.addEventListener('click', (e) => {
@@ -898,7 +930,7 @@ public class Program
 
             if (tabName === 'queue-view' || tabName === 'queue-init') {
                 switchQueueTab(tabName);
-            } else if (tabName === 'vars' || tabName === 'stack' || tabName === 'console') {
+            } else if (tabName === 'vars' || tabName === 'stack' || tabName === 'console' || tabName === 'input') {
                 switchInspectionTab(tabName);
             }
         });
@@ -992,9 +1024,21 @@ public class Program
         if (this.dom.initialQueueInput) {
             this.dom.initialQueueInput.value = this.formatQueueInputValue(this.initialQueue, this.initialQueueType);
         }
+        if (this.inputTableManager) {
+            if (preset.inputs && Array.isArray(preset.inputs)) {
+                this.inputTableManager.setInputs(preset.inputs);
+            } else {
+                const mainCode = this.editorFiles[this.activeFileName]?.code || this.dom.codeTextarea?.value || '';
+                this.inputTableManager.autoPopulateIfEmpty(mainCode);
+            }
+        }
         this.updateLineNumbers();
         this.recompile();
-        if (this.switchQueueTab) this.switchQueueTab('queue-view');
+        if (preset.inputs && preset.inputs.length > 0) {
+            if (this.switchInspectionTab) this.switchInspectionTab('input');
+        } else if (this.switchQueueTab) {
+            this.switchQueueTab('queue-view');
+        }
     }
 
     updatePresetsDropdown() {
@@ -1916,13 +1960,23 @@ public class Program
             codeFiles[name] = fObj.code;
         }
 
-        let result = this.interpreter.run(codeFiles, this.initialParams);
+        let inputQueue = [];
+        if (this.inputTableManager) {
+            inputQueue = this.inputTableManager.getInputValues();
+            const mainCode = codeFiles['Program.cs'] || codeFiles[this.activeFileName] || this.dom.codeTextarea?.value || '';
+            if (inputQueue.length === 0) {
+                this.inputTableManager.autoPopulateIfEmpty(mainCode);
+                inputQueue = this.inputTableManager.getInputValues();
+            }
+        }
+
+        let result = this.interpreter.run(codeFiles, this.initialParams, inputQueue);
 
         // עדכון כרטיס תור ופרמטרים
         const typeChanged = this.updateQueueInitUI(result);
 
         if (typeChanged) {
-            result = this.interpreter.run(codeFiles, this.initialParams);
+            result = this.interpreter.run(codeFiles, this.initialParams, inputQueue);
         }
 
         this.frames = result.frames;
@@ -2709,9 +2763,9 @@ public class Program
 
         // 3. הדגשת שורה בעורך הקוד (רק אם השורה שייכת לקובץ הפעיל כרגע)
         if (frameFile === this.activeFileName) {
-            this.renderEditorHighlight(frame.line, Boolean(frame.error));
+            this.renderEditorHighlight(frame.line, Boolean(frame.error), Boolean(frame.isInputStep));
         } else {
-            this.renderEditorHighlight(null, false);
+            this.renderEditorHighlight(null, false, false);
         }
 
         // 4. עדכון סרגל משוב פדגוגי בעברית
@@ -2728,9 +2782,14 @@ public class Program
 
         // 8. עדכון מסוף פלט (Console Output)
         this.renderConsole(frame.consoleOutputs);
+
+        // 9. עדכון טבלת קלט נתונים (Input Table)
+        if (this.inputTableManager) {
+            this.inputTableManager.updateStep(frame);
+        }
     }
 
-    renderEditorHighlight(activeLine, isError) {
+    renderEditorHighlight(activeLine, isError, isInputStep = false) {
         const code = this.dom.codeTextarea.value;
         const lineCount = code.split('\n').length;
         let html = '';
@@ -2743,10 +2802,10 @@ public class Program
             }
 
             if (lineNum === activeLine) {
-                const cls = isError ? 'error-line' : 'active-line';
+                const cls = isError ? 'error-line' : (isInputStep ? 'active-line active-input-line' : 'active-line');
                 html += `<div class="code-line-highlight ${cls}"></div>`;
                 if (lineEl) {
-                    lineEl.classList.add(isError ? 'error-line-num' : 'active-line-num');
+                    lineEl.classList.add(isError ? 'error-line-num' : (isInputStep ? 'active-line-num active-input-num' : 'active-line-num'));
                 }
             } else {
                 html += `<div class="code-line-highlight"></div>`;
