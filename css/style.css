@@ -49,11 +49,12 @@ body {
     overflow: hidden;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 900px), (max-width: 1024px) and (orientation: portrait) {
     body {
         height: auto;
         min-height: 100vh;
         overflow-y: auto;
+        overflow-x: hidden;
     }
 }
 
@@ -96,10 +97,59 @@ body {
     letter-spacing: -0.02em;
 }
 
-.brand-title p {
+.brand-title p,
+.brand-subtitle {
     font-size: 0.8rem;
     color: #94a3b8;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
 }
+
+.header-wa-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #25d366;
+    color: #ffffff !important;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 0.12rem 0.55rem;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 4px rgba(37, 211, 102, 0.35);
+    line-height: 1.2;
+}
+
+.header-wa-link:hover {
+    background: #1eb857;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(37, 211, 102, 0.5);
+    color: #ffffff !important;
+}
+
+.header-wa-link .wa-icon {
+    flex-shrink: 0;
+}
+
+.footer-wa-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #25d366 !important;
+    text-decoration: none;
+    font-weight: 700;
+    margin-right: 0.35rem;
+    transition: color 0.15s ease;
+}
+
+.footer-wa-link:hover {
+    color: #4ade80 !important;
+    text-decoration: underline;
+}
+
 
 /* סרגל מעבר בין אתרי הלמידה (Cross-Studio Portal Switcher) */
 .portal-nav-bar {
@@ -303,16 +353,6 @@ body {
     position: relative;
 }
 
-@media (max-width: 1100px) {
-    .main-container {
-        grid-template-columns: 1fr !important;
-        height: auto !important;
-        overflow: visible !important;
-    }
-    .layout-splitter-horizontal {
-        display: none !important;
-    }
-}
 
 /* מפריד שינוי רוחב אופקי בין חלון התצוגה לעורך הקוד */
 .layout-splitter-horizontal {
@@ -2123,16 +2163,7 @@ body.viewcard-resizing-active {
 
 /* סרגל כיווניות וקצוות התור - ממוקם מעל המסילה */
 .queue-endpoints-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f8fafc;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.35rem 0.75rem;
-    margin-bottom: 0.45rem;
-    font-size: 0.85rem;
-    font-weight: 700;
+    display: none !important;
 }
 
 .endpoint-marker {
@@ -4210,53 +4241,402 @@ body.queue-dragging-active * {
    התאמה רספונסיבית לטאבלט ולסמארטפון (Mobile & Tablet Friendly)
    ======================================================= */
 
-/* --- טאבלטים ומסכים בינוניים (עד 1024px) --- */
-@media (max-width: 1024px) {
+/* --- התאמת סרגל עליון (Header) ומניעת חריגה במסכי טאבלט (עד 1280px) --- */
+@media (max-width: 1280px) {
+    .app-header {
+        padding: 0.35rem 0.85rem;
+    }
+
+    .header-inner {
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .brand-title {
+        gap: 0.5rem;
+    }
+
+    .brand-icon {
+        font-size: 1.35rem;
+        padding: 0.2rem 0.45rem;
+    }
+
+    .brand-title h1 {
+        font-size: 1.05rem;
+        white-space: nowrap;
+    }
+
+    .brand-title p {
+        font-size: 0.72rem;
+    }
+
+    .portal-nav-bar {
+        padding: 2px 4px;
+        gap: 3px;
+        border-radius: 18px;
+    }
+
+    .portal-nav-link {
+        padding: 0.22rem 0.52rem;
+        font-size: 0.74rem;
+        gap: 4px;
+        border-radius: 14px;
+    }
+
+    .portal-nav-icon {
+        font-size: 0.8rem;
+    }
+
+    .header-actions {
+        gap: 0.45rem;
+    }
+
+    .studio-mode-bar {
+        padding: 0.2rem 0.35rem;
+        gap: 0.25rem;
+        border-radius: 20px;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .studio-mode-bar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .btn-studio-mode {
+        padding: 0.2rem 0.45rem;
+        font-size: 0.72rem;
+        gap: 0.2rem;
+        flex-shrink: 0;
+    }
+
+    .studio-mode-bar-sep {
+        height: 16px;
+        margin: 0 0.1rem;
+    }
+
+    .header-lang-pills {
+        padding: 2px 4px;
+        gap: 2px;
+        border-radius: 16px;
+        flex-shrink: 0;
+    }
+
+    .header-lang-pills .btn-lang-pill {
+        padding: 0.18rem 0.45rem;
+        font-size: 0.72rem;
+        gap: 3px;
+        border-radius: 14px;
+    }
+}
+
+/* --- טאבלטים במצב מאוזן / שוכב (Tablet Landscape: 901px עד 1280px) --- */
+@media (min-width: 901px) and (max-width: 1280px) and (orientation: landscape),
+       (min-width: 901px) and (max-width: 1280px) and (max-height: 850px) {
+    body {
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    .app-header {
+        padding: 0.3rem 0.85rem;
+    }
+
+    .main-container {
+        display: grid !important;
+        grid-template-columns: minmax(360px, 1.25fr) 8px minmax(320px, 1fr) !important;
+        height: calc(100vh - 58px) !important;
+        margin: 0.15rem auto 0 !important;
+        padding: 0 0.5rem 0.35rem !important;
+        overflow: hidden !important;
+        gap: 0.35rem !important;
+    }
+
+    .layout-splitter-horizontal {
+        display: flex !important;
+        width: 8px !important;
+    }
+
+    .editor-column {
+        order: unset !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 0 !important;
+    }
+
+    .editor-panel {
+        height: 100% !important;
+        min-height: 0 !important;
+    }
+
+    .visual-panel {
+        order: unset !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+    }
+
+    .editor-tabs-bar {
+        min-height: 36px;
+        padding: 0.25rem 0.55rem 0;
+    }
+
+    .example-select {
+        max-width: 170px;
+        font-size: 0.74rem;
+        padding: 0.2rem 0.4rem;
+    }
+
+    .btn-add-class-tab {
+        font-size: 0.74rem;
+        padding: 0.2rem 0.45rem;
+    }
+
+    #code-textarea, #code-highlighter {
+        font-size: 13.5px;
+        line-height: 20px;
+    }
+
+    .controls-bar, #controls-card {
+        padding: 0.4rem 0.75rem;
+    }
+
+    .btn-ctrl {
+        padding: 0.28rem 0.6rem;
+        font-size: 0.78rem;
+    }
+
+    .speed-control {
+        font-size: 0.75rem;
+    }
+
+    .speed-slider {
+        width: 65px;
+    }
+
+    .step-info, .step-badge {
+        font-size: 0.72rem;
+    }
+
+    .status-banner {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.78rem;
+    }
+
+    .queue-stage-card {
+        min-height: 0;
+        flex: 1 1 55%;
+    }
+
+    .inspection-tabs-card {
+        min-height: 0;
+        flex: 1 1 45%;
+    }
+}
+
+/* --- טאבלט במצב מאונך / עומד (Tablet Portrait: עד 900px או 1024px במצב Portrait) --- */
+@media (max-width: 900px), (max-width: 1024px) and (orientation: portrait) {
     body {
         height: auto;
         min-height: 100vh;
         overflow-y: auto;
+        overflow-x: hidden;
     }
 
+    .app-header {
+        padding: 0.4rem 0.75rem;
+    }
+
+    .header-inner {
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        justify-content: space-between;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .studio-mode-bar {
+        width: 100%;
+        max-width: 100%;
+        justify-content: flex-start;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 0.2rem 0.35rem;
+        scrollbar-width: none;
+    }
+
+    .studio-mode-bar::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* פריסה ראשית במצב עומד: עורך קוד עליון (זהה לשכבה י'), במת המחשה תחתונה */
     .main-container {
-        grid-template-columns: 1fr;
-        height: auto;
-        overflow: visible;
-        gap: 0.75rem;
-        padding: 0 0.65rem;
+        display: flex !important;
+        flex-direction: column !important;
+        height: auto !important;
+        overflow: visible !important;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem 0.85rem 0.5rem;
+        margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .layout-splitter-horizontal {
         display: none !important;
     }
 
-    .visual-column {
-        width: 100%;
-        min-width: 0;
-        min-height: 480px;
-    }
-
+    /* עמודת עורך הקוד - ממוקמת בראש הדף (order: 1) בדיוק כמו ב-10th visualizer */
     .editor-column {
-        width: 100%;
-        min-width: 0;
-        min-height: 500px;
+        order: 1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 480px !important;
+        min-height: 480px !important;
+        margin: 0 !important;
+        flex: 0 0 auto !important;
+        box-sizing: border-box;
     }
 
-    .controls-row {
+    .editor-panel {
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 480px !important;
+        border-radius: 12px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    /* עמודת במת ההמחשה והמעקב - ממוקמת מתחת לעורך (order: 2) */
+    .visual-panel {
+        order: 2 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: auto !important;
+        min-height: 480px;
+        margin: 0 !important;
+        overflow: visible !important;
+        box-sizing: border-box;
+    }
+
+    /* התאמת פנים העורך במצב עומד - גובה וגופנים זהים בין כל האתרים */
+    .editor-tabs-bar {
+        padding: 0.3rem 0.5rem 0;
+        min-height: 38px;
+    }
+
+    .example-select {
+        max-width: 175px;
+        font-size: 0.74rem;
+        padding: 0.2rem 0.4rem;
+    }
+
+    .btn-add-class-tab {
+        font-size: 0.74rem;
+        padding: 0.2rem 0.45rem;
+    }
+
+    .line-numbers {
+        width: 40px;
+        font-size: 12.5px;
+        line-height: 20px;
+        padding: 0.75rem 0.2rem;
+    }
+
+    .line-number-item {
+        height: 20px;
+        line-height: 20px;
+    }
+
+    #code-textarea, #code-highlighter {
+        font-size: 13.5px;
+        line-height: 20px;
+        padding: 0.75rem 0.85rem;
+    }
+
+    .controls-bar, #controls-card {
+        padding: 0.45rem 0.75rem;
+        gap: 0.4rem;
+    }
+
+    .playback-buttons {
+        gap: 0.3rem;
+    }
+
+    .btn-ctrl {
+        padding: 0.3rem 0.65rem;
+        font-size: 0.78rem;
+    }
+
+    .speed-control {
+        font-size: 0.75rem;
+        gap: 0.35rem;
+    }
+
+    .speed-slider {
+        width: 65px;
+    }
+
+    .step-info, .step-badge {
+        font-size: 0.72rem;
+        padding: 0.15rem 0.45rem;
+    }
+
+    .status-banner {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.78rem;
+    }
+
+    /* התאמת במת התורים וכרטיסיות המעקב */
+    .card-header.tabs-header {
         flex-wrap: wrap;
-        gap: 0.6rem;
-        justify-content: space-between;
+        gap: 0.35rem;
+        padding: 0.45rem 0.75rem;
     }
 
-    .queues-stage {
-        max-height: 520px;
+    .tab-btn {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.78rem;
+    }
+
+    .card-header-actions {
+        gap: 0.35rem;
+    }
+
+    .badge-fifo {
+        display: none !important;
+    }
+
+    .badge-drag-hint {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.4rem;
+    }
+
+    .queue-track-card {
+        min-width: 0 !important;
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    .queue-horizontal-track {
+        max-width: 100%;
         overflow-x: auto;
-        overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }
 
-    .bintree-svg-viewport {
-        max-height: 420px;
+    .panel-resizer-vertical {
+        display: none !important;
+    }
+
+    .inspection-tabs-card {
+        min-height: 280px;
+        max-height: 400px;
     }
 }
 

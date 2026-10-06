@@ -3107,20 +3107,6 @@ public class Program
                     </div>
                 </div>
 
-                <!-- סרגל קצוות מעל המסילה - אינו נדרס על ידי האיברים -->
-                <div class="queue-endpoints-bar">
-                    <div class="endpoint-marker head-marker">
-                        <span>🚪 ראש התור (Head) — יציאה / Remove</span>
-                    </div>
-                    <div class="endpoint-flow-indicator">
-                        <span class="flow-arrows">◀◀◀</span>
-                        <span>כיוון התקדמות FIFO</span>
-                        <span class="flow-arrows">◀◀◀</span>
-                    </div>
-                    <div class="endpoint-marker tail-marker">
-                        <span>סוף התור (Tail) — כניסה / Insert 📥</span>
-                    </div>
-                </div>
 
                 <!-- מסילת התור עם שערים פיזיים נפרדים -->
                 <div class="queue-horizontal-track">
