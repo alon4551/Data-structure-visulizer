@@ -20,13 +20,17 @@ class CSharpQueueInterpreter {
     setInputQueue(inputs) {
         if (Array.isArray(inputs)) {
             this.inputQueue = inputs.map(item => {
-                if (typeof item === 'object' && item !== null && 'value' in item) {
-                    return String(item.value);
+                if (item === undefined || item === null) return '';
+                if (typeof item === 'object') {
+                    const v = item.value !== undefined ? item.value : (item.val !== undefined ? item.val : '');
+                    const s = String(v);
+                    return (s === 'undefined' || s === 'null') ? '' : s;
                 }
-                return String(item);
+                const s = String(item);
+                return (s === 'undefined' || s === 'null') ? '' : s;
             });
         } else if (typeof inputs === 'string') {
-            this.inputQueue = inputs.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            this.inputQueue = inputs.split('\n').map(s => s.trim()).filter(s => s.length > 0 && s !== 'undefined' && s !== 'null');
         } else {
             this.inputQueue = [];
         }
@@ -1850,10 +1854,14 @@ class RuntimeEnvironment {
         this.ast = ast;
         const rawInputs = Array.isArray(inputQueue) ? inputQueue : (initialValues && initialValues.inputs ? initialValues.inputs : []);
         this.inputQueue = rawInputs.map(item => {
-            if (typeof item === 'object' && item !== null && 'value' in item) {
-                return String(item.value);
+            if (item === undefined || item === null) return '';
+            if (typeof item === 'object') {
+                const v = item.value !== undefined ? item.value : (item.val !== undefined ? item.val : '');
+                const s = String(v);
+                return (s === 'undefined' || s === 'null') ? '' : s;
             }
-            return String(item);
+            const s = String(item);
+            return (s === 'undefined' || s === 'null') ? '' : s;
         });
         this.consumedInputs = [];
         this.currentInputIndex = 0;
@@ -2549,6 +2557,23 @@ class RuntimeEnvironment {
         return returnVal;
     }
 
+    isDirectReadLineExpr(initExpr) {
+        if (!initExpr) return false;
+        if (initExpr.type === 'CallExpression' || initExpr.type === 'MethodCallExpression') {
+            const isConsole = (initExpr.object && initExpr.object.type === 'Identifier' && initExpr.object.name === 'Console') ||
+                (initExpr.object && initExpr.object.type === 'MemberExpression' && initExpr.object.property === 'Console') ||
+                (typeof initExpr.object === 'string' && initExpr.object === 'Console');
+            if (isConsole && initExpr.method === 'ReadLine') return true;
+        }
+        return false;
+    }
+
+    isStringType(type) {
+        if (!type) return false;
+        const t = String(type).trim();
+        return t === 'string' || t === 'String' || t === 'var' || t === 'object' || t === 'Object';
+    }
+
     executeStatement(stmt, scope) {
         this.checkStepLimit(stmt.line);
         if (stmt.file) this.currentFile = stmt.file;
@@ -2564,6 +2589,9 @@ class RuntimeEnvironment {
             }
 
             case 'VariableDeclaration': {
+                if (stmt.init && this.isDirectReadLineExpr(stmt.init) && !this.isStringType(stmt.varType)) {
+                    throw { line: stmt.line, message: `שגיאת הידור: לא ניתן להמיר באופן מרומז טיפוס 'string' ל-'${stmt.varType}'. האם התכוונת לכתוב ${stmt.varType}.Parse(Console.ReadLine())?` };
+                }
                 let val = null;
                 if (stmt.init) {
                     val = this.evaluateExpression(stmt.init, scope);
@@ -2948,6 +2976,13 @@ class RuntimeEnvironment {
                     }
                 } else {
                     throw { line: expr.line, message: 'השמה מותרת רק למשתנה, לשדה של אובייקט או לאינדקס מערך' };
+                }
+
+                if (targetName && this.isDirectReadLineExpr(expr.right)) {
+                    const existingVal = scope.has(targetName) ? scope.get(targetName) : null;
+                    if (existingVal !== null && typeof existingVal === 'number') {
+                        throw { line: expr.line, message: `שגיאת הידור: לא ניתן להמיר באופן מרומז טיפוס 'string' למספר. האם התכוונת לכתוב int.Parse(Console.ReadLine())?` };
+                    }
                 }
 
                 const rightVal = this.evaluateExpression(expr.right, scope);
@@ -3412,7 +3447,8 @@ class RuntimeEnvironment {
                 // בדיקת קריאה לקליטת קלט מ-Console.ReadLine()
                 if (isConsoleCall && expr.method === 'ReadLine') {
                     const inputIdx = this.currentInputIndex++;
-                    const rawVal = this.inputQueue.length > 0 ? this.inputQueue.shift() : '0';
+                    let rawVal = this.inputQueue.length > 0 ? this.inputQueue.shift() : '';
+                    if (rawVal === undefined || rawVal === null || rawVal === 'undefined' || rawVal === 'null') rawVal = '';
                     const inputEvent = {
                         index: inputIdx,
                         rawVal: String(rawVal),
@@ -3451,8 +3487,11 @@ class RuntimeEnvironment {
                     const fn = (expr.method || '').toLowerCase();
                     if (fn === 'parseint' || fn === 'parse') {
                         const val = this.evaluateExpression(expr.arguments[0], scope);
-                        const res = parseInt(val, 10);
-                        const finalVal = isNaN(res) ? 0 : res;
+                        const trimmed = String(val).trim();
+                        if (!/^-?\d+$/.test(trimmed)) {
+                            throw { line: expr.line, message: `שגיאת זמן ריצה (FormatException): הערך "${val}" אינו מספר שלם (int) תקין!` };
+                        }
+                        const finalVal = parseInt(trimmed, 10);
                         if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
                             this.lastInputEvent.type = 'int';
                             this.lastInputEvent.parsedVal = finalVal;
@@ -3464,8 +3503,11 @@ class RuntimeEnvironment {
                     const fn = (expr.method || '').toLowerCase();
                     if (fn === 'parsedouble' || fn === 'parsefloat' || fn === 'parse') {
                         const val = this.evaluateExpression(expr.arguments[0], scope);
-                        const res = parseFloat(val);
-                        const finalVal = isNaN(res) ? 0.0 : res;
+                        const trimmed = String(val).trim();
+                        if (isNaN(parseFloat(trimmed)) || !/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(trimmed)) {
+                            throw { line: expr.line, message: `שגיאת זמן ריצה (FormatException): הערך "${val}" אינו מספר עשרוני (double) תקין!` };
+                        }
+                        const finalVal = parseFloat(trimmed);
                         if (this.lastInputEvent && this.lastInputEvent.line === expr.line) {
                             this.lastInputEvent.type = 'double';
                             this.lastInputEvent.parsedVal = finalVal;
